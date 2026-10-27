@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Add OULAD and UCI dataset loaders
+- Add point-in-time build_snapshot with leakage test
+- Add rule score and weekly logistic-regression baseline
+- Add marks, LMS and enrolment-context features
+
+### Changed
+
+- Refresh memory bank and regenerate changelog
+- Record baseline AUC by week on real OULAD
+- Update baseline AUC with richer features
+
+### Fixed
+
+- Handle real OULAD and UCI file quirks
+
 ## [0.1.0] - 2026-10-27
 
 ### Added
