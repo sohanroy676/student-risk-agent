@@ -81,7 +81,7 @@ def test_database_snapshot_matches_in_memory_snapshot(
 
 def test_database_rows_after_as_of_are_not_loaded(loaded_db: generator.SyntheticData) -> None:
     assert TEST_DB is not None
-    as_of = generator.TERM_START + timedelta(weeks=2)
+    as_of = generator.TERM_START + timedelta(weeks=6)  # first assessment is in week 4
     engine = create_engine(TEST_DB)
     try:
         with engine.connect() as conn:
@@ -89,6 +89,7 @@ def test_database_rows_after_as_of_are_not_loaded(loaded_db: generator.Synthetic
     finally:
         engine.dispose()
     cutoff = pd.Timestamp(as_of)
+    assert not tables.marks.empty and not tables.fees.empty  # so the max() checks mean something
     assert tables.attendance["class_date"].max() <= cutoff
     assert tables.lms_events["occurred_at"].max() < cutoff + pd.Timedelta(days=1)
     assert tables.marks["submitted_on"].max() <= cutoff
