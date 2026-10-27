@@ -1,9 +1,12 @@
 alembic==1.20.1
 fastapi==0.162.0
+matplotlib==3.11.2
 numpy==2.5.4
+pandas==3.1.0
 pydantic==2.14.1
 pydantic-settings==2.16.1
 psycopg[binary]==3.3.6
 redis==8.1.0
+scikit-learn==1.9.1
 sqlalchemy==2.1.6
 uvicorn==0.54.0
