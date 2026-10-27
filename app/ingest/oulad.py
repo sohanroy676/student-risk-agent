@@ -105,8 +105,14 @@ def load_oulad(directory: Path) -> OuladData:
     )
     term_id = dict(zip(terms["name"], terms["id"], strict=True))
 
-    modules = sorted(info["code_module"].unique())
-    courses = pd.DataFrame({"id": range(1, len(modules) + 1), "code": modules, "title": modules})
+    # One core course per (module, presentation): assessments and enrolment must not pair
+    # a student with another presentation's assessments.
+    offerings = sorted(
+        {f"{m}-{p}" for m, p in zip(info["code_module"], info["code_presentation"], strict=True)}
+    )
+    courses = pd.DataFrame(
+        {"id": range(1, len(offerings) + 1), "code": offerings, "title": offerings}
+    )
     course_id = dict(zip(courses["code"], courses["id"], strict=True))
 
     section_keys = info[["code_module", "code_presentation"]].drop_duplicates()
@@ -126,7 +132,7 @@ def load_oulad(directory: Path) -> OuladData:
         section_id[(m, p)]
         for m, p in zip(info["code_module"], info["code_presentation"], strict=True)
     ]
-    info["course_id"] = info["code_module"].map(course_id)
+    info["course_id"] = (info["code_module"] + "-" + info["code_presentation"]).map(course_id)
     key = ["code_module", "code_presentation", "id_student"]
     student_of = info[[*key, "student_id"]]
 
@@ -155,7 +161,9 @@ def load_oulad(directory: Path) -> OuladData:
     assessments["due_date"] = (
         assessments["start"] + pd.to_timedelta(assessments["date"], unit="D")
     ).fillna(end)
-    assessments["course_id"] = assessments["code_module"].map(course_id)
+    assessments["course_id"] = (
+        assessments["code_module"] + "-" + assessments["code_presentation"]
+    ).map(course_id)
     assessments["title"] = assessments["id_assessment"].astype(str)
     assessments["max_marks"] = MAX_MARKS
     assessment_start = assessments.set_index("id_assessment")["start"]
@@ -178,7 +186,7 @@ def load_oulad(directory: Path) -> OuladData:
 
     events = vle.merge(student_of, on=key, how="inner")
     events["occurred_at"] = _starts(events) + pd.to_timedelta(events["date"], unit="D")
-    events["course_id"] = events["code_module"].map(course_id)
+    events["course_id"] = (events["code_module"] + "-" + events["code_presentation"]).map(course_id)
     lms_events = events[["student_id", "course_id", "occurred_at", "sum_click"]].copy()
     lms_events["event_type"] = "view"
 

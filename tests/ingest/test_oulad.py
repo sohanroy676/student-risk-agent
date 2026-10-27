@@ -137,3 +137,15 @@ def test_unknown_presentation_code_in_data_raises(oulad_dir: Path) -> None:
     (oulad_dir / "studentInfo.csv").write_text(INFO.replace("BBB,2013J", "BBB,2013Z"))
     with pytest.raises(ValueError, match="presentation code"):
         load_oulad(oulad_dir)
+
+
+def test_each_presentation_is_its_own_course(oulad_dir: Path) -> None:
+    data = load_oulad(oulad_dir)
+    assert sorted(data.courses["code"]) == ["AAA-2013J", "AAA-2014J", "BBB-2013J"]
+    code_of = data.courses.set_index("id")["code"]
+    assessment_course = data.assessments.set_index("id")["course_id"].map(code_of)
+    assert assessment_course.loc[10] == "AAA-2013J"
+    assert assessment_course.loc[12] == "AAA-2014J"
+    # No student is enrolled in an offering other than their own presentation's.
+    assert len(data.enrollments) == len(data.students)
+    assert data.enrollments["student_id"].is_unique

@@ -12,10 +12,13 @@ v0.1 "Setup and synthetic data" is merged to `main` (PR #1) and tagged `v0.1.0`.
 - OULAD and UCI datasets are not in the repo; the user will download them later, so the real-data AUC run (targets: week 1 >= 0.72, week 8 >= 0.86) is deferred. Tests use fixtures and the synthetic generator.
 - OULAD loader: a student is one (module, presentation, id_student) registration; banked assessments dropped; exams without a date fall back to presentation end; protected attributes returned in a separate frame.
 - UCI loader: static table (no dates), so it cannot feed `build_snapshot`; used only as a baseline cross-check.
+- Snapshot builder: a mark counts only if `submitted_on <= as_of` (no graded-on date exists), a fee paid after `as_of` still counts as overdue, rates are NaN with no data and counts 0. Rows with a mark but no submission date are treated as unknown. `build_snapshot` takes `CoreTables` as its first argument so the leakage test needs no database.
+- OULAD: one core course per (module, presentation); otherwise students would pair with other presentations' assessments.
 
 ## Blockers / open questions
 - Still unverified: `docker compose up` (no Docker on this machine) and `cd web && npm run build`.
 - Pinned versions were taken from pip at 2026-10-27; web versions (next 15.5.9 etc.) were not build-tested.
+- `tests/features/test_db.py` has never run (no local Postgres); verify on the first CI run.
 
 ## Next step
-Next: `feature/snapshot-builder`, then `feature/baseline-models`. Branches are stacked on `docs/post-v0.1`; review before merging. Run both loaders on the real OULAD and UCI files once downloaded and fix any schema surprises.
+Next: `feature/baseline-models`. Branches are stacked on `docs/post-v0.1`; review before merging. Run both loaders on the real OULAD and UCI files once downloaded and fix any schema surprises.

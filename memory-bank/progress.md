@@ -13,13 +13,14 @@
 
 - v0.2 "Data and baseline model", one branch per item, stacked on `docs/post-v0.1` (nothing pushed):
   - `feature/dataset-loaders`: OULAD and UCI loaders done (`app/ingest/oulad.py`, `uci.py`); pandas added. Fixture tests only; real files not yet checked (UCI column names are from memory)
+  - `feature/snapshot-builder`: `build_snapshot(tables, student_ids, as_of)` (`app/features/snapshot.py`, 12 features), `CoreTables`, Postgres adapter `app/features/db.py`, Hypothesis leakage test; also fixed OULAD loader to make one core course per (module, presentation)
 
 ## Next
 
-- `feature/snapshot-builder`: `build_snapshot` with Hypothesis leakage test
 - `feature/baseline-models`: rule score and logistic regression by week
 
 ## Unverified
 
 - `docker compose up`
 - `cd web && npm run build`
+- `app/features/db.py` and `tests/features/test_db.py` (need Postgres; first run is CI)
