@@ -7,7 +7,7 @@
 - Agent: Anthropic Python SDK with tool use, behind a thin provider interface (a locally hosted open model is allowed via the same interface)
 - Jobs: Celery + Redis, Celery beat for schedules
 - Auth: ERP SSO via OIDC if available, otherwise Keycloak
-- Node, Next.js, Redis and Celery versions: not pinned yet
+- Pinned: see requirements*.txt and web/package.json; Redis 7 and Postgres 16 images; Celery not yet added
 
 ## Database and services
 - PostgreSQL 16 with row-level security and JSONB; schemas: raw, core, ml, app, gov, restricted
