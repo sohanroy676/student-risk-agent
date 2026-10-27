@@ -15,9 +15,11 @@
   - `feature/dataset-loaders`: OULAD and UCI loaders done (`app/ingest/oulad.py`, `uci.py`); pandas added. Fixture tests only; real files not yet checked (UCI column names are from memory)
   - `feature/snapshot-builder`: `build_snapshot(tables, student_ids, as_of)` (`app/features/snapshot.py`, 12 features), `CoreTables`, Postgres adapter `app/features/db.py`, Hypothesis leakage test; also fixed OULAD loader to make one core course per (module, presentation)
 
+  - `feature/baseline-models`: rule score (`app/ml/rules.py`), weekly logistic regression (`app/ml/baseline.py`), AUC-by-week CSV/PNG CLI (`python -m app.ml.report --oulad DIR`); scikit-learn and matplotlib added. Synthetic AUC is ~1.0 (planted signal is easy), so it proves the pipeline, not the targets
+
 ## Next
 
-- `feature/baseline-models`: rule score and logistic regression by week
+- Review and merge the stacked v0.2 branches; run `python -m app.ml.report` on real OULAD to get week 1 and week 8 AUC against 0.72 / 0.86
 
 ## Unverified
 

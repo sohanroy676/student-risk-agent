@@ -1,55 +1,11 @@
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
 import pytest
 
+from app.features.snapshot import build_snapshot
 from app.ingest.oulad import load_oulad, presentation_start
-
-INFO = """code_module,code_presentation,id_student,gender,region,highest_education,imd_band,\
-age_band,num_of_prev_attempts,studied_credits,disability,final_result
-AAA,2013J,1,M,Wales,A Level,10-20%,0-35,0,60,N,Pass
-AAA,2013J,2,F,Wales,A Level,10-20%,0-35,0,60,N,Withdrawn
-AAA,2014J,1,M,Wales,A Level,10-20%,0-35,1,60,N,Fail
-BBB,2013J,3,F,Kent,HE,?,35-55,0,60,Y,Distinction
-AAA,2013J,1,M,Wales,A Level,10-20%,0-35,0,60,N,Pass
-"""
-COURSES = """code_module,code_presentation,module_presentation_length
-AAA,2013J,268
-AAA,2014J,269
-BBB,2013J,240
-"""
-ASSESSMENTS = """code_module,code_presentation,id_assessment,assessment_type,date,weight
-AAA,2013J,10,TMA,19,10
-AAA,2013J,11,Exam,,100
-AAA,2014J,12,TMA,19,10
-"""
-STUDENT_ASSESSMENT = """id_assessment,id_student,date_submitted,is_banked,score
-10,1,18,0,80
-10,2,25,0,
-11,1,260,0,70
-10,1,18,1,99
-12,1,20,0,50
-"""
-VLE = """code_module,code_presentation,id_student,id_site,date,sum_click
-AAA,2013J,1,500,-5,3
-AAA,2013J,1,501,0,2
-AAA,2014J,1,500,7,4
-BBB,2013J,3,502,1,1
-"""
-
-
-@pytest.fixture
-def oulad_dir(tmp_path: Path) -> Path:
-    files = {
-        "studentInfo.csv": INFO,
-        "courses.csv": COURSES,
-        "assessments.csv": ASSESSMENTS,
-        "studentAssessment.csv": STUDENT_ASSESSMENT,
-        "studentVle.csv": VLE,
-    }
-    for name, text in files.items():
-        (tmp_path / name).write_text(text, encoding="utf-8")
-    return tmp_path
 
 
 def test_presentation_start_maps_codes_to_dates() -> None:
@@ -134,7 +90,8 @@ def test_missing_column_raises(oulad_dir: Path) -> None:
 
 
 def test_unknown_presentation_code_in_data_raises(oulad_dir: Path) -> None:
-    (oulad_dir / "studentInfo.csv").write_text(INFO.replace("BBB,2013J", "BBB,2013Z"))
+    info = oulad_dir / "studentInfo.csv"
+    info.write_text(info.read_text().replace("BBB,2013J", "BBB,2013Z"))
     with pytest.raises(ValueError, match="presentation code"):
         load_oulad(oulad_dir)
 
@@ -149,3 +106,39 @@ def test_each_presentation_is_its_own_course(oulad_dir: Path) -> None:
     # No student is enrolled in an offering other than their own presentation's.
     assert len(data.enrollments) == len(data.students)
     assert data.enrollments["student_id"].is_unique
+
+
+def test_labels_carry_term_start_and_no_registration_file_means_never_left(
+    oulad_dir: Path,
+) -> None:
+    labels = load_oulad(oulad_dir).labels
+    assert set(labels["term_start"]) == {pd.Timestamp("2013-10-01"), pd.Timestamp("2014-10-01")}
+    assert labels["unregistered_on"].isna().all()
+
+
+def test_unregistration_offsets_become_dates(oulad_dir: Path) -> None:
+    (oulad_dir / "studentRegistration.csv").write_text(
+        "code_module,code_presentation,id_student,date_registration,date_unregistration\n"
+        "AAA,2013J,1,-30,\n"
+        "AAA,2013J,2,-10,30\n"
+        "AAA,2014J,1,-5,-2\n"
+        "BBB,2013J,3,-1,\n"
+    )
+    labels = load_oulad(oulad_dir).labels
+    left = labels["unregistered_on"].dropna()
+    assert sorted(left) == [pd.Timestamp("2013-10-31"), pd.Timestamp("2014-09-29")]
+    assert labels["unregistered_on"].isna().sum() == 2
+
+
+def test_registration_file_missing_column_raises(oulad_dir: Path) -> None:
+    (oulad_dir / "studentRegistration.csv").write_text("code_module,id_student\nAAA,1\n")
+    with pytest.raises(ValueError, match="date_unregistration"):
+        load_oulad(oulad_dir)
+
+
+def test_to_core_tables_feeds_the_snapshot_builder(oulad_dir: Path) -> None:
+    data = load_oulad(oulad_dir)
+    snap = build_snapshot(data.to_core_tables(), data.students["id"], date(2013, 10, 20))
+    assert len(snap) == len(data.students)
+    assert snap["classes_held"].eq(0).all()  # OULAD has no attendance
+    assert snap["lms_events_total"].sum() > 0

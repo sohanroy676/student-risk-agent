@@ -14,6 +14,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from app.features.tables import CoreTables
+
 # Assumed calendar start of each presentation; B starts in February, J in October.
 PRESENTATION_STARTS = {"B": (2, 1), "J": (10, 1)}
 AT_RISK_RESULTS = frozenset({"Withdrawn", "Fail"})
@@ -57,6 +59,17 @@ class OuladData:
     lms_events: pd.DataFrame
     attributes: pd.DataFrame
     labels: pd.DataFrame
+
+    def to_core_tables(self) -> CoreTables:
+        """Feature-builder input. OULAD has no attendance or fee data, so those are empty."""
+        return CoreTables.from_frames(
+            enrollments=self.enrollments,
+            attendance=pd.DataFrame(columns=["student_id", "course_id", "class_date", "present"]),
+            assessments=self.assessments,
+            marks=self.marks,
+            fees=pd.DataFrame(columns=["student_id", "due_date", "amount", "paid_on"]),
+            lms_events=self.lms_events,
+        )
 
 
 def presentation_start(code_presentation: str) -> pd.Timestamp:
@@ -151,6 +164,21 @@ def load_oulad(directory: Path) -> OuladData:
     ]
     labels = info[["student_id", "code_presentation"]].copy()
     labels["at_risk"] = info["final_result"].isin(AT_RISK_RESULTS)
+    labels["term_start"] = _starts(info)
+    # Day the student unregistered (NaT if they never did); lets evaluation skip people
+    # who had already left by `as_of`. The registration file is optional.
+    labels["unregistered_on"] = pd.NaT
+    registration_path = directory / "studentRegistration.csv"
+    if registration_path.is_file():
+        registration = pd.read_csv(registration_path)
+        missing = {*key, "date_unregistration"} - set(registration.columns)
+        if missing:
+            raise ValueError(f"studentRegistration.csv is missing columns: {sorted(missing)}")
+        registered = registration.drop_duplicates(key).merge(student_of, on=key, how="inner")
+        offsets = labels["student_id"].map(
+            registered.set_index("student_id")["date_unregistration"]
+        )
+        labels["unregistered_on"] = labels["term_start"] + pd.to_timedelta(offsets, unit="D")
 
     # Assessments: exams have no date, so they fall back to the presentation end.
     assessments = assessments_raw.copy()

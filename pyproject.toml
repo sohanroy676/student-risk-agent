@@ -25,3 +25,7 @@ files = ["app", "data"]
 testpaths = ["tests"]
 addopts = "-ra"
 pythonpath = ["."]
+
+[[tool.mypy.overrides]]
+module = ["sklearn.*"]
+ignore_missing_imports = true
