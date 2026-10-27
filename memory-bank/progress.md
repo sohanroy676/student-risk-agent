@@ -11,11 +11,13 @@
 
 ## In progress
 
-- `docs/post-v0.1`: memory-bank and CHANGELOG refresh (not pushed)
+- v0.2 "Data and baseline model", one branch per item, stacked on `docs/post-v0.1` (nothing pushed):
+  - `feature/dataset-loaders`: OULAD and UCI loaders done (`app/ingest/oulad.py`, `uci.py`); pandas added. Fixture tests only; real files not yet checked (UCI column names are from memory)
 
 ## Next
 
-- v0.2 "Data and baseline model": dataset loaders, `build_snapshot` with leakage test, rule score and logistic regression by week
+- `feature/snapshot-builder`: `build_snapshot` with Hypothesis leakage test
+- `feature/baseline-models`: rule score and logistic regression by week
 
 ## Unverified
 

@@ -10,10 +10,12 @@ v0.1 "Setup and synthetic data" is merged to `main` (PR #1) and tagged `v0.1.0`.
 - CI uses `postgresql+psycopg://` URLs and runs plain `mypy` (covers `app` and `data`).
 - v0.2 choices: `build_snapshot` has a DataFrame core with a thin DB adapter; OULAD "week N" = course start + 7N days; at-risk label = Withdrawn or Fail; AUC-by-week chart is a matplotlib PNG under `docs/`.
 - OULAD and UCI datasets are not in the repo; the user will download them later, so the real-data AUC run (targets: week 1 >= 0.72, week 8 >= 0.86) is deferred. Tests use fixtures and the synthetic generator.
+- OULAD loader: a student is one (module, presentation, id_student) registration; banked assessments dropped; exams without a date fall back to presentation end; protected attributes returned in a separate frame.
+- UCI loader: static table (no dates), so it cannot feed `build_snapshot`; used only as a baseline cross-check.
 
 ## Blockers / open questions
 - Still unverified: `docker compose up` (no Docker on this machine) and `cd web && npm run build`.
 - Pinned versions were taken from pip at 2026-10-27; web versions (next 15.5.9 etc.) were not build-tested.
 
 ## Next step
-Merge `docs/post-v0.1` after review, then build v0.2 one feature branch per item: `feature/dataset-loaders`, `feature/snapshot-builder`, `feature/baseline-models`.
+Next: `feature/snapshot-builder`, then `feature/baseline-models`. Branches are stacked on `docs/post-v0.1`; review before merging. Run both loaders on the real OULAD and UCI files once downloaded and fix any schema surprises.
