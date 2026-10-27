@@ -16,6 +16,7 @@ AT_RISK_TARGET = "Dropout"
 PROTECTED_COLUMNS = (
     "gender",
     "nationality",
+    "nacionality",  # the published file's own spelling
     "marital_status",
     "age_at_enrollment",
     "international",

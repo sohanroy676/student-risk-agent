@@ -20,6 +20,7 @@ from app.features.tables import CoreTables
 PRESENTATION_STARTS = {"B": (2, 1), "J": (10, 1)}
 AT_RISK_RESULTS = frozenset({"Withdrawn", "Fail"})
 MAX_MARKS = 100
+MISSING = ["?"]  # the published files write "?" for missing values
 
 _REQUIRED_COLUMNS = {
     "courses.csv": {"code_module", "code_presentation", "module_presentation_length"},
@@ -85,7 +86,7 @@ def _read(directory: Path, name: str) -> pd.DataFrame:
     path = directory / name
     if not path.is_file():
         raise ValueError(f"OULAD file missing: {path}")
-    frame = pd.read_csv(path)
+    frame = pd.read_csv(path, na_values=MISSING)
     missing = _REQUIRED_COLUMNS[name] - set(frame.columns)
     if missing:
         raise ValueError(f"{name} is missing columns: {sorted(missing)}")
@@ -170,7 +171,7 @@ def load_oulad(directory: Path) -> OuladData:
     labels["unregistered_on"] = pd.NaT
     registration_path = directory / "studentRegistration.csv"
     if registration_path.is_file():
-        registration = pd.read_csv(registration_path)
+        registration = pd.read_csv(registration_path, na_values=MISSING)
         missing = {*key, "date_unregistration"} - set(registration.columns)
         if missing:
             raise ValueError(f"studentRegistration.csv is missing columns: {sorted(missing)}")

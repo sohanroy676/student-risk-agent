@@ -36,3 +36,7 @@ npm-debug.log*
 .claude/settings.local.json
 CLAUDE.local.md
 data/synthetic/out/
+
+# Downloaded research datasets (licensed, large)
+data/open_university_learning_analytics_dataset/
+data/predict_students_dropout_and_academic_success/

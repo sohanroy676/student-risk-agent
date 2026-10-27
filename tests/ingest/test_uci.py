@@ -64,3 +64,14 @@ def test_colliding_normalised_columns_raise(tmp_path: Path) -> None:
     path = _write(tmp_path / "data.csv", ["1;2;Dropout"], "Debtor;debtor;Target")
     with pytest.raises(ValueError, match="collide"):
         load_uci(path)
+
+
+def test_real_file_quirks_bom_misspelling_and_tab_in_header(tmp_path: Path) -> None:
+    header = '﻿Marital status;Nacionality;"Daytime/evening attendance\t";Gender;Target'
+    path = tmp_path / "data.csv"
+    path.write_text(f"{header}\n1;1;1;1;Dropout\n", encoding="utf-8")
+    data = load_uci(path)
+    assert "nacionality" not in data.features.columns
+    assert "nacionality" in data.attributes.columns
+    assert "marital_status" in data.attributes.columns
+    assert "daytime_evening_attendance" in data.features.columns

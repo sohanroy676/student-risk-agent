@@ -142,3 +142,20 @@ def test_to_core_tables_feeds_the_snapshot_builder(oulad_dir: Path) -> None:
     assert len(snap) == len(data.students)
     assert snap["classes_held"].eq(0).all()  # OULAD has no attendance
     assert snap["lms_events_total"].sum() > 0
+
+
+def test_question_mark_means_missing_as_in_the_published_files(oulad_dir: Path) -> None:
+    (oulad_dir / "studentRegistration.csv").write_text(
+        '"code_module","code_presentation","id_student","date_registration","date_unregistration"\n'
+        '"AAA","2013J","1","-30","?"\n'
+        '"AAA","2013J","2","-10","30"\n'
+    )
+    assessments = oulad_dir / "assessments.csv"
+    assessments.write_text(assessments.read_text().replace(",,100", ",?,100"))
+    scores = oulad_dir / "studentAssessment.csv"
+    scores.write_text(scores.read_text().replace("25,0,\n", "25,0,?\n"))
+    data = load_oulad(oulad_dir)
+    assert data.labels["unregistered_on"].notna().sum() == 1
+    exam_due = data.assessments.set_index("id").loc[11, "due_date"]
+    assert exam_due == pd.Timestamp("2013-10-01") + pd.Timedelta(days=268)
+    assert data.marks["marks_obtained"].isna().sum() == 1
