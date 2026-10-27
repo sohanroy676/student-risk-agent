@@ -1,7 +1,7 @@
 # Roadmap
 
 ## Now
-- v0.1 Setup and synthetic data: repo, Docker Compose, DB schema, CI, synthetic college generator
+- v0.1 Setup and synthetic data: code complete on stacked branches, awaiting review and a Docker verification (see activeContext)
 - v0.2 Data and baseline model: OULAD and UCI loaded, as_of feature builder with leakage test, rule score, logistic regression evaluated by week
 
 ## Next
