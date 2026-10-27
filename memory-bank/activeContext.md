@@ -1,19 +1,19 @@
 # Active Context
 
 ## Current focus
-v0.1 "Setup and synthetic data" is code complete on five stacked branches, none pushed or merged.
+v0.1 "Setup and synthetic data" is merged to `main` (PR #1) and tagged `v0.1.0`. CI is green on main, including the live Alembic migration test on Postgres 16. Next: v0.2 "Data and baseline model" (loaders, `build_snapshot`, rule score, logistic regression by week).
 
 ## Recent decisions
-- Branches stacked (each off the previous); merge in order.
 - Initial migration includes core ERP tables plus `restricted.student_attributes`; `ml`, `app`, `gov` are empty schemas.
 - Synthetic: 15-week term, 5 courses, 3 classes/week, 4 assessments/course, 2 fee instalments, 10% planted struggling (40). Output goes to `data/synthetic/out/` (git-ignored); `python -m data.synthetic.generator`.
 - Tests needing Postgres use `TEST_DATABASE_URL` and skip when unset.
 - CI uses `postgresql+psycopg://` URLs and runs plain `mypy` (covers `app` and `data`).
+- v0.2 choices: `build_snapshot` has a DataFrame core with a thin DB adapter; OULAD "week N" = course start + 7N days; at-risk label = Withdrawn or Fail; AUC-by-week chart is a matplotlib PNG under `docs/`.
+- OULAD and UCI datasets are not in the repo; the user will download them later, so the real-data AUC run (targets: week 1 >= 0.72, week 8 >= 0.86) is deferred. Tests use fixtures and the synthetic generator.
 
 ## Blockers / open questions
-- Docker is not installed on this machine: `docker compose up` health and the live migration test have never run. First CI run on a PR will exercise the migration; compose needs a manual check.
-- Pinned versions were taken from pip at 2026-10-27 and web versions (next 15.5.9 etc.) were not build-tested (`npm run build` not run).
-- CHANGELOG.md not regenerated (run `/commit` step 7 or regenerate before merge).
+- Still unverified: `docker compose up` (no Docker on this machine) and `cd web && npm run build`.
+- Pinned versions were taken from pip at 2026-10-27; web versions (next 15.5.9 etc.) were not build-tested.
 
 ## Next step
-Review the branches, run `docker compose up` somewhere with Docker, then merge in order; then start v0.2.
+Merge `docs/post-v0.1` after review, then build v0.2 one feature branch per item: `feature/dataset-loaders`, `feature/snapshot-builder`, `feature/baseline-models`.
