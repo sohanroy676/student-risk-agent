@@ -29,6 +29,12 @@ COUNT_FEATURES = (
     "late_submissions",
     "lms_events_total",
     "lms_events_14d",
+    "lms_events_prev_14d",
+    "lms_trend",
+    "lms_active_days",
+    "lms_active_days_14d",
+    "lms_forum_events",
+    "lms_quiz_events",
     "fees_overdue_count",
     "fees_overdue_amount",
 )
@@ -40,11 +46,22 @@ FEATURE_NAMES = (
     "missed_submissions",
     "late_submissions",
     "marks_pct_mean",
+    "marks_pct_last",
+    "marks_pct_min",
+    "submit_lead_days_mean",
     "lms_events_total",
     "lms_events_14d",
+    "lms_events_prev_14d",
+    "lms_trend",
+    "lms_active_days",
+    "lms_active_days_14d",
+    "lms_forum_events",
+    "lms_quiz_events",
     "days_since_last_lms",
     "fees_overdue_count",
     "fees_overdue_amount",
+    "credits_enrolled",
+    "prior_attempts",
 )
 
 
@@ -85,6 +102,11 @@ def _assessments(t: CoreTables, ids: pd.Index, day_end: pd.Timestamp) -> pd.Data
         t.assessments[["id", "max_marks"]], left_on="assessment_id", right_on="id"
     )
     pct = scored["marks_obtained"].astype(float) / scored["max_marks"].astype(float)
+    latest = scored.assign(pct=pct).sort_values(["submitted_on", "assessment_id"])
+    lead_basis = submitted.merge(
+        t.assessments[["id", "due_date"]], left_on="assessment_id", right_on="id"
+    )
+    lead_days = (lead_basis["due_date"] - lead_basis["submitted_on"]).dt.days
     return pd.DataFrame(
         {
             "assessments_due": by_student.size(),
@@ -94,6 +116,10 @@ def _assessments(t: CoreTables, ids: pd.Index, day_end: pd.Timestamp) -> pd.Data
             .groupby(joined["student_id"])
             .sum(),
             "marks_pct_mean": pct.groupby(scored["student_id"]).mean(),
+            "marks_pct_last": latest.groupby("student_id")["pct"].last(),
+            "marks_pct_min": pct.groupby(scored["student_id"]).min(),
+            # Positive = handed in before the deadline, negative = after it.
+            "submit_lead_days_mean": lead_days.groupby(lead_basis["student_id"]).mean(),
         }
     )
 
@@ -104,12 +130,34 @@ def _lms(t: CoreTables, ids: pd.Index, day_end: pd.Timestamp) -> pd.DataFrame:
     weight = (
         ev["sum_click"].astype(float) if "sum_click" in ev.columns else pd.Series(1.0, ev.index)
     )
-    recent = ev["occurred_at"] >= day_end - pd.Timedelta(days=RECENT_LMS_DAYS)
+    recent_start = day_end - pd.Timedelta(days=RECENT_LMS_DAYS)
+    recent = ev["occurred_at"] >= recent_start
+    previous = ~recent & (ev["occurred_at"] >= recent_start - pd.Timedelta(days=RECENT_LMS_DAYS))
+    active_day = ev["occurred_at"].dt.normalize()
     last_day = ev["occurred_at"].groupby(ev["student_id"]).max().dt.normalize()
+
+    def window_sum(mask: pd.Series) -> pd.Series:
+        return weight[mask].groupby(ev.loc[mask, "student_id"]).sum()
+
+    if "event_type" in ev.columns:
+        forum = window_sum(ev["event_type"] == "forum_post")
+        quiz = window_sum(ev["event_type"] == "quiz_attempt")
+    else:
+        forum = quiz = pd.Series(dtype=float)
+    last_14 = window_sum(recent)
+    prev_14 = window_sum(previous)
     return pd.DataFrame(
         {
             "lms_events_total": weight.groupby(ev["student_id"]).sum(),
-            "lms_events_14d": weight[recent].groupby(ev.loc[recent, "student_id"]).sum(),
+            "lms_events_14d": last_14,
+            "lms_events_prev_14d": prev_14,
+            "lms_trend": last_14.sub(prev_14, fill_value=0.0),
+            "lms_active_days": active_day.groupby(ev["student_id"]).nunique(),
+            "lms_active_days_14d": active_day[recent]
+            .groupby(ev.loc[recent, "student_id"])
+            .nunique(),
+            "lms_forum_events": forum,
+            "lms_quiz_events": quiz,
             "days_since_last_lms": (day_end - pd.Timedelta(days=1) - last_day).dt.days,
         }
     )
@@ -131,11 +179,19 @@ def _fees(t: CoreTables, ids: pd.Index, day_end: pd.Timestamp) -> pd.DataFrame:
     )
 
 
+def _context(t: CoreTables, ids: pd.Index, day_end: pd.Timestamp) -> pd.DataFrame:
+    """Facts fixed at enrolment (credit load, earlier attempts); undated, so always known."""
+    if t.student_context is None:
+        return pd.DataFrame(index=pd.Index([], name="student_id"))
+    context = t.student_context.drop_duplicates("student_id").set_index("student_id")
+    return context.loc[context.index.isin(ids), ["credits_enrolled", "prior_attempts"]]
+
+
 def build_snapshot(tables: CoreTables, student_ids: Iterable[int], as_of: date) -> pd.DataFrame:
     """One row per requested student (input order, duplicates dropped), `FEATURE_NAMES` columns."""
     ids = pd.Index(list(dict.fromkeys(student_ids)), name="student_id")
     day_end = pd.Timestamp(as_of).normalize() + pd.Timedelta(days=1)
-    parts = [_attendance, _assessments, _lms, _fees]
+    parts = [_attendance, _assessments, _lms, _fees, _context]
     snapshot = pd.concat([part(tables, ids, day_end) for part in parts], axis=1)
     snapshot = snapshot.reindex(index=ids, columns=list(FEATURE_NAMES)).astype(float)
     snapshot[list(COUNT_FEATURES)] = snapshot[list(COUNT_FEATURES)].fillna(0.0)

@@ -17,9 +17,11 @@
 
   - `feature/baseline-models`: rule score (`app/ml/rules.py`), weekly logistic regression (`app/ml/baseline.py`), AUC-by-week CSV/PNG CLI (`python -m app.ml.report --oulad DIR`); scikit-learn and matplotlib added. Synthetic AUC is ~1.0 (planted signal is easy), so it proves the pipeline, not the targets
 
+  - `feature/richer-features`: 11 more features (marks last/min, submit lead days, LMS trend/active days/forum/quiz, credits, prior attempts); OULAD loader reads `vle.csv` and `studentInfo` context. Real OULAD AUC: week 1 0.680, week 8 0.781 (was 0.666 / 0.779) - targets 0.72 / 0.86 still NOT met
+
 ## Next
 
-- Review and merge the stacked v0.2 branches; run `python -m app.ml.report` on real OULAD to get week 1 and week 8 AUC against 0.72 / 0.86
+- Close the AUC gap on real OULAD (see activeContext), then review and merge the stacked v0.2 branches
 
 ## Unverified
 

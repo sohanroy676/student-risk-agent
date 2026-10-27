@@ -15,13 +15,14 @@ v0.1 "Setup and synthetic data" is merged to `main` (PR #1) and tagged `v0.1.0`.
 - Snapshot builder: a mark counts only if `submitted_on <= as_of` (no graded-on date exists), a fee paid after `as_of` still counts as overdue, rates are NaN with no data and counts 0. Rows with a mark but no submission date are treated as unknown. `build_snapshot` takes `CoreTables` as its first argument so the leakage test needs no database.
 - OULAD: one core course per (module, presentation); otherwise students would pair with other presentations' assessments.
 - Baseline: a fresh logistic regression per week (median impute + scale), trained on presentations before 2014 and tested on 2014; evaluation skips students who unregistered on or before `as_of` (loader reads optional `studentRegistration.csv`). Rule score returns per-rule contributions.
+- Real OULAD (2013 train / 2014 test, registered students only): baseline AUC wk1 0.666, wk8 0.779; with richer features 0.680 / 0.781. A log1p transform of counts gave no gain (0.685 / 0.779), so skew is not the cause. OULAD lacks attendance/fees. Untried: per-activity-type clicks (vle.csv types beyond forum/quiz), assessment weights, LightGBM (v0.3), demographics (excluded by design as protected).
 
 ## Blockers / open questions
 - Still unverified: `docker compose up` (no Docker on this machine) and `cd web && npm run build`.
 - Pinned versions were taken from pip at 2026-10-27; web versions (next 15.5.9 etc.) were not build-tested.
 - `tests/features/test_db.py` has never run (no local Postgres); verify on the first CI run.
 
-- Real-data AUC targets (week 1 >= 0.72, week 8 >= 0.86) are unmeasured until OULAD is downloaded; v0.2 stays in ROADMAP "Now" until then.
+- Real-data AUC targets (week 1 >= 0.72, week 8 >= 0.86) are measured and NOT met; v0.2 stays in ROADMAP "Now".
 
 ## Next step
 v0.2 code is complete on `feature/dataset-loaders` -> `feature/snapshot-builder` -> `feature/baseline-models`. Branches are stacked on `docs/post-v0.1`; review before merging. Run both loaders on the real OULAD and UCI files once downloaded and fix any schema surprises.

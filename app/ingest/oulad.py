@@ -20,6 +20,8 @@ from app.features.tables import CoreTables
 PRESENTATION_STARTS = {"B": (2, 1), "J": (10, 1)}
 AT_RISK_RESULTS = frozenset({"Withdrawn", "Fail"})
 MAX_MARKS = 100
+# vle.csv activity types that map to a specific event type; everything else is a "view".
+ACTIVITY_EVENT_TYPES = {"forumng": "forum_post", "quiz": "quiz_attempt"}
 MISSING = ["?"]  # the published files write "?" for missing values
 
 _REQUIRED_COLUMNS = {
@@ -35,6 +37,8 @@ _REQUIRED_COLUMNS = {
         "age_band",
         "disability",
         "final_result",
+        "num_of_prev_attempts",
+        "studied_credits",
     },
     "assessments.csv": {"code_module", "code_presentation", "id_assessment", "date"},
     "studentAssessment.csv": {
@@ -60,6 +64,7 @@ class OuladData:
     lms_events: pd.DataFrame
     attributes: pd.DataFrame
     labels: pd.DataFrame
+    context: pd.DataFrame
 
     def to_core_tables(self) -> CoreTables:
         """Feature-builder input. OULAD has no attendance or fee data, so those are empty."""
@@ -70,6 +75,7 @@ class OuladData:
             marks=self.marks,
             fees=pd.DataFrame(columns=["student_id", "due_date", "amount", "paid_on"]),
             lms_events=self.lms_events,
+            student_context=self.context,
         )
 
 
@@ -91,6 +97,25 @@ def _read(directory: Path, name: str) -> pd.DataFrame:
     if missing:
         raise ValueError(f"{name} is missing columns: {sorted(missing)}")
     return frame
+
+
+def _event_types(directory: Path, events: pd.DataFrame) -> pd.Series:
+    """Event type per click row from the optional vle.csv (id_site -> activity_type)."""
+    path = directory / "vle.csv"
+    if not path.is_file():
+        return pd.Series("view", index=events.index)
+    vle_sites = pd.read_csv(path, na_values=MISSING)
+    needed = {"id_site", "code_module", "code_presentation", "activity_type"}
+    if needed - set(vle_sites.columns):
+        raise ValueError(f"vle.csv is missing columns: {sorted(needed - set(vle_sites.columns))}")
+    site_key = ["id_site", "code_module", "code_presentation"]
+    kind = (
+        vle_sites.drop_duplicates(site_key)
+        .set_index(site_key)["activity_type"]
+        .map(ACTIVITY_EVENT_TYPES)
+    )
+    joined = pd.MultiIndex.from_frame(events[site_key])
+    return pd.Series(kind.reindex(joined).to_numpy(), index=events.index).fillna("view")
 
 
 def _starts(frame: pd.DataFrame) -> pd.Series:
@@ -163,6 +188,10 @@ def load_oulad(directory: Path) -> OuladData:
             "disability",
         ]
     ]
+    # Credit load and earlier attempts are known at enrolment, so they are valid at any as_of.
+    context = info[["student_id", "studied_credits", "num_of_prev_attempts"]].rename(
+        columns={"studied_credits": "credits_enrolled", "num_of_prev_attempts": "prior_attempts"}
+    )
     labels = info[["student_id", "code_presentation"]].copy()
     labels["at_risk"] = info["final_result"].isin(AT_RISK_RESULTS)
     labels["term_start"] = _starts(info)
@@ -217,7 +246,7 @@ def load_oulad(directory: Path) -> OuladData:
     events["occurred_at"] = _starts(events) + pd.to_timedelta(events["date"], unit="D")
     events["course_id"] = (events["code_module"] + "-" + events["code_presentation"]).map(course_id)
     lms_events = events[["student_id", "course_id", "occurred_at", "sum_click"]].copy()
-    lms_events["event_type"] = "view"
+    lms_events["event_type"] = _event_types(directory, events)
 
     return OuladData(
         terms=terms[["id", "name", "start_date", "end_date"]],
@@ -232,4 +261,5 @@ def load_oulad(directory: Path) -> OuladData:
         lms_events=lms_events.reset_index(drop=True),
         attributes=attributes.reset_index(drop=True),
         labels=labels.reset_index(drop=True),
+        context=context.reset_index(drop=True),
     )

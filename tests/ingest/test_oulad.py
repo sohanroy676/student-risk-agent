@@ -159,3 +159,47 @@ def test_question_mark_means_missing_as_in_the_published_files(oulad_dir: Path) 
     exam_due = data.assessments.set_index("id").loc[11, "due_date"]
     assert exam_due == pd.Timestamp("2013-10-01") + pd.Timedelta(days=268)
     assert data.marks["marks_obtained"].isna().sum() == 1
+
+
+def test_vle_activity_types_become_event_types(oulad_dir: Path) -> None:
+    (oulad_dir / "vle.csv").write_text(
+        "id_site,code_module,code_presentation,activity_type,week_from,week_to\n"
+        "500,AAA,2013J,forumng,,\n"
+        "501,AAA,2013J,quiz,,\n"
+        "500,AAA,2014J,resource,,\n"
+        "502,BBB,2013J,oucontent,,\n"
+    )
+    events = load_oulad(oulad_dir).lms_events
+    assert sorted(events["event_type"]) == ["forum_post", "quiz_attempt", "view", "view"]
+
+
+def test_without_vle_file_every_click_is_a_view(oulad_dir: Path) -> None:
+    assert set(load_oulad(oulad_dir).lms_events["event_type"]) == {"view"}
+
+
+def test_vle_file_missing_column_raises(oulad_dir: Path) -> None:
+    (oulad_dir / "vle.csv").write_text("id_site,code_module\n500,AAA\n")
+    with pytest.raises(ValueError, match="activity_type"):
+        load_oulad(oulad_dir)
+
+
+def test_site_ids_are_scoped_to_their_presentation(oulad_dir: Path) -> None:
+    # Site 500 is a forum in 2013J but a plain resource in 2014J.
+    (oulad_dir / "vle.csv").write_text(
+        "id_site,code_module,code_presentation,activity_type\n"
+        "500,AAA,2013J,forumng\n"
+        "500,AAA,2014J,resource\n"
+    )
+    events = load_oulad(oulad_dir).lms_events
+    forum = events[events["event_type"] == "forum_post"]
+    assert len(forum) == 1
+    assert forum["occurred_at"].iloc[0] == pd.Timestamp("2013-10-01") - pd.Timedelta(days=5)
+
+
+def test_context_comes_from_credits_and_prior_attempts(oulad_dir: Path) -> None:
+    data = load_oulad(oulad_dir)
+    assert set(data.context.columns) == {"student_id", "credits_enrolled", "prior_attempts"}
+    assert len(data.context) == len(data.students)
+    assert data.context["prior_attempts"].max() == 1  # AAA 2014J student 1 retook the module
+    snap = build_snapshot(data.to_core_tables(), data.students["id"], date(2013, 10, 20))
+    assert snap["credits_enrolled"].eq(60).all()

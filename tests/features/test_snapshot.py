@@ -401,3 +401,110 @@ def test_from_frames_rejects_missing_table_and_column() -> None:
     frames["fees"] = frames["fees"].drop(columns=["paid_on"])
     with pytest.raises(ValueError, match="paid_on"):
         CoreTables.from_frames(**frames)
+
+
+# ---------- Richer features ----------
+
+
+def test_hand_computed_richer_features_at_as_of() -> None:
+    row = build_snapshot(small_world(), [1], AS_OF).iloc[0]
+    # Only assessment 1 (25/50, handed in on its due date) is known on the 10th.
+    assert row["marks_pct_last"] == pytest.approx(0.5)
+    assert row["marks_pct_min"] == pytest.approx(0.5)
+    assert row["submit_lead_days_mean"] == 0
+    # Events on Mar 10 and Mar 8; the Mar 11 event is in the future.
+    assert row["lms_active_days"] == 2
+    assert row["lms_active_days_14d"] == 2
+    assert row["lms_events_prev_14d"] == 0
+    assert row["lms_trend"] == 2
+
+
+def test_richer_marks_features_once_a_late_mark_is_known() -> None:
+    row = build_snapshot(small_world(), [1], date(2026, 3, 12)).iloc[0]
+    assert row["marks_pct_last"] == pytest.approx(0.9)  # newest submission wins
+    assert row["marks_pct_min"] == pytest.approx(0.5)
+    assert row["submit_lead_days_mean"] == pytest.approx(-3.5)  # 0 days and 7 days late
+
+
+def test_lms_trend_compares_the_last_two_fortnights() -> None:
+    rows = {
+        "enrollments": [{"student_id": 1, "course_id": 1}],
+        "lms_events": [
+            _lms(datetime(2026, 3, 9)),  # last 14 days
+            _lms(datetime(2026, 2, 20)),  # previous 14 days
+            _lms(datetime(2026, 2, 21)),  # previous 14 days
+            _lms(datetime(2026, 2, 21, 5)),  # same day as above: one active day
+            _lms(datetime(2026, 1, 1)),  # older than both windows
+        ],
+    }
+    row = build_snapshot(tables_from(rows), [1], AS_OF).iloc[0]
+    assert row["lms_events_14d"] == 1
+    assert row["lms_events_prev_14d"] == 3
+    assert row["lms_trend"] == -2
+    assert row["lms_active_days"] == 4
+    assert row["lms_active_days_14d"] == 1
+
+
+def test_forum_and_quiz_events_are_counted_by_type() -> None:
+    rows = {
+        "enrollments": [{"student_id": 1, "course_id": 1}],
+        "lms_events": [
+            {**_lms(datetime(2026, 3, 9)), "event_type": "forum_post", "sum_click": 4},
+            {**_lms(datetime(2026, 3, 9)), "event_type": "quiz_attempt", "sum_click": 1},
+            {**_lms(datetime(2026, 3, 9)), "event_type": "view", "sum_click": 9},
+            {**_lms(datetime(2026, 3, 11)), "event_type": "forum_post", "sum_click": 50},
+        ],
+    }
+    row = build_snapshot(tables_from(rows), [1], AS_OF).iloc[0]
+    assert row["lms_forum_events"] == 4  # the forum post on the 11th is in the future
+    assert row["lms_quiz_events"] == 1
+    assert row["lms_events_total"] == 14
+
+
+def test_event_types_default_to_zero_without_the_column() -> None:
+    row = build_snapshot(small_world(), [1], AS_OF).iloc[0]
+    assert row["lms_forum_events"] == 0
+    assert row["lms_quiz_events"] == 0
+
+
+def _with_context(rows: list[dict[str, Any]]) -> CoreTables:
+    base = small_world()
+    return CoreTables.from_frames(
+        enrollments=base.enrollments,
+        attendance=base.attendance,
+        assessments=base.assessments,
+        marks=base.marks,
+        fees=base.fees,
+        lms_events=base.lms_events,
+        student_context=pd.DataFrame(rows),
+    )
+
+
+def test_student_context_is_attached_and_missing_without_it() -> None:
+    with_context = _with_context([{"student_id": 1, "credits_enrolled": 60, "prior_attempts": 2}])
+    snap = build_snapshot(with_context, [1, 2], AS_OF)
+    assert snap.loc[1, "credits_enrolled"] == 60
+    assert snap.loc[1, "prior_attempts"] == 2
+    assert snap.loc[[2], ["credits_enrolled", "prior_attempts"]].isna().all().all()
+    plain = build_snapshot(small_world(), [1], AS_OF)
+    assert plain[["credits_enrolled", "prior_attempts"]].isna().all().all()
+
+
+def test_duplicate_context_rows_do_not_duplicate_students() -> None:
+    rows = [{"student_id": 1, "credits_enrolled": 60, "prior_attempts": 0}] * 3
+    snap = build_snapshot(_with_context(rows), [1], AS_OF)
+    assert len(snap) == 1
+
+
+def test_context_is_the_same_at_every_as_of() -> None:
+    tables = _with_context([{"student_id": 1, "credits_enrolled": 90, "prior_attempts": 1}])
+    early = build_snapshot(tables, [1], date(2026, 1, 1)).iloc[0]
+    late = build_snapshot(tables, [1], date(2026, 12, 1)).iloc[0]
+    assert early["credits_enrolled"] == late["credits_enrolled"] == 90
+
+
+def test_context_with_missing_columns_is_rejected() -> None:
+    frames = to_frames(generator.generate(seed=1))
+    frames["student_context"] = pd.DataFrame({"student_id": [1], "credits_enrolled": [60]})
+    with pytest.raises(ValueError, match="prior_attempts"):
+        CoreTables.from_frames(**frames)

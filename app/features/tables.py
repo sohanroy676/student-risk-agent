@@ -17,6 +17,7 @@ REQUIRED_COLUMNS: dict[str, set[str]] = {
     "fees": {"student_id", "due_date", "amount", "paid_on"},
     "lms_events": {"student_id", "course_id", "occurred_at"},
 }
+CONTEXT_COLUMNS = {"student_id", "credits_enrolled", "prior_attempts"}
 DATE_COLUMNS: dict[str, tuple[str, ...]] = {
     "attendance": ("class_date",),
     "assessments": ("due_date",),
@@ -34,6 +35,8 @@ class CoreTables:
     marks: pd.DataFrame
     fees: pd.DataFrame
     lms_events: pd.DataFrame
+    # Undated facts fixed at enrolment (credit load, earlier attempts); optional.
+    student_context: pd.DataFrame | None = None
 
     @classmethod
     def from_frames(cls, **frames: pd.DataFrame) -> "CoreTables":
@@ -50,4 +53,10 @@ class CoreTables:
             for column in DATE_COLUMNS.get(name, ()):
                 frame[column] = pd.to_datetime(frame[column])
             clean[name] = frame
-        return cls(**clean)
+        context = frames.get("student_context")
+        if context is not None:
+            missing = CONTEXT_COLUMNS - set(context.columns)
+            if missing:
+                raise ValueError(f"student_context is missing columns: {sorted(missing)}")
+            context = context.copy()
+        return cls(**clean, student_context=context)
