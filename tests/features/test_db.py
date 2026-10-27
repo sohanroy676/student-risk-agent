@@ -4,6 +4,7 @@ import sys
 from collections.abc import Iterator
 from datetime import timedelta
 
+import pandas as pd
 import pytest
 from pandas.testing import assert_frame_equal
 from sqlalchemy import create_engine
@@ -87,7 +88,9 @@ def test_database_rows_after_as_of_are_not_loaded(loaded_db: generator.Synthetic
             tables = load_core_tables(conn, as_of)
     finally:
         engine.dispose()
-    assert tables.attendance["class_date"].max() <= as_of
-    assert tables.lms_events["occurred_at"].max() < as_of + timedelta(days=1)
-    assert tables.marks["submitted_on"].max() <= as_of
-    assert (tables.fees["paid_on"].dropna() <= as_of).all()
+    cutoff = pd.Timestamp(as_of)
+    assert tables.attendance["class_date"].max() <= cutoff
+    assert tables.lms_events["occurred_at"].max() < cutoff + pd.Timedelta(days=1)
+    assert tables.marks["submitted_on"].max() <= cutoff
+    assert (tables.fees["paid_on"].dropna() <= cutoff).all()
+    assert {"forum_post", "quiz_attempt"} <= set(tables.lms_events["event_type"])

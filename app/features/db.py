@@ -26,7 +26,7 @@ QUERIES = {
                CASE WHEN paid_on <= :as_of THEN paid_on END AS paid_on
         FROM core.fees WHERE due_date <= :as_of""",
     "lms_events": """
-        SELECT student_id, course_id, occurred_at
+        SELECT student_id, course_id, occurred_at, event_type
         FROM core.lms_events WHERE occurred_at < CAST(:as_of AS date) + 1""",
 }
 
