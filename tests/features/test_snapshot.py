@@ -7,7 +7,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from pandas.testing import assert_frame_equal
 
-from app.features.snapshot import FEATURE_NAMES, build_snapshot
+from app.features.snapshot import FEATURE_NAMES, LMS_TYPE_FEATURES, build_snapshot
 from app.features.tables import CoreTables
 from data.synthetic import generator
 from data.synthetic.frames import to_core_tables, to_frames
@@ -40,6 +40,8 @@ def tables_from(rows: dict[str, list[dict[str, Any]]]) -> CoreTables:
 
 
 # ---------- Hypothesis leakage test ----------
+
+EVENT_TYPES = st.sampled_from([*LMS_TYPE_FEATURES, "view"])
 
 
 @st.composite
@@ -98,6 +100,8 @@ def worlds(draw: st.DrawFn) -> tuple[dict[str, list[dict[str, Any]]], dict[str, 
             "course_id": draw(st.sampled_from(courses)),
             "occurred_at": datetime.combine(day(draw(past)), datetime.min.time())
             + timedelta(hours=draw(st.integers(0, 23))),
+            "event_type": draw(EVENT_TYPES),
+            "sum_click": draw(st.integers(1, 20)),
         }
         for _ in range(draw(st.integers(0, 12)))
     ]
@@ -117,6 +121,8 @@ def worlds(draw: st.DrawFn) -> tuple[dict[str, list[dict[str, Any]]], dict[str, 
                 "student_id": draw(st.sampled_from(students)),
                 "course_id": draw(st.sampled_from(courses)),
                 "occurred_at": datetime.combine(day(draw(future)), datetime.min.time()),
+                "event_type": draw(EVENT_TYPES),
+                "sum_click": draw(st.integers(1, 20)),
             }
             for _ in range(draw(st.integers(0, 6)))
         ],
@@ -461,10 +467,35 @@ def test_forum_and_quiz_events_are_counted_by_type() -> None:
     assert row["lms_events_total"] == 14
 
 
+def test_every_activity_group_is_counted_by_type_and_recent_window() -> None:
+    old, recent = datetime(2026, 2, 1), datetime(2026, 3, 9)  # 37 days vs 1 day before as_of
+    events = [
+        {**_lms(old), "event_type": "content", "sum_click": 10},
+        {**_lms(recent), "event_type": "content", "sum_click": 3},
+        {**_lms(recent), "event_type": "homepage", "sum_click": 2},
+        {**_lms(old), "event_type": "homepage", "sum_click": 5},
+        {**_lms(recent), "event_type": "url", "sum_click": 1},
+        {**_lms(recent), "event_type": "collab", "sum_click": 4},
+        {**_lms(recent), "event_type": "wiki_glossary", "sum_click": 6},
+        {**_lms(recent), "event_type": "activity", "sum_click": 7},
+        {**_lms(datetime(2026, 3, 11)), "event_type": "content", "sum_click": 99},  # future
+    ]
+    rows = {"enrollments": [{"student_id": 1, "course_id": 1}], "lms_events": events}
+    row = build_snapshot(tables_from(rows), [1], AS_OF).iloc[0]
+    assert row["lms_content_events"] == 13
+    assert row["lms_content_events_14d"] == 3
+    assert row["lms_homepage_events"] == 7
+    assert row["lms_homepage_events_14d"] == 2
+    assert row["lms_url_events"] == 1
+    assert row["lms_collab_events"] == 4
+    assert row["lms_wiki_glossary_events"] == 6
+    assert row["lms_activity_events"] == 7
+
+
 def test_event_types_default_to_zero_without_the_column() -> None:
     row = build_snapshot(small_world(), [1], AS_OF).iloc[0]
-    assert row["lms_forum_events"] == 0
-    assert row["lms_quiz_events"] == 0
+    for name in (*LMS_TYPE_FEATURES.values(), "lms_content_events_14d", "lms_homepage_events_14d"):
+        assert row[name] == 0, name
 
 
 def _with_context(rows: list[dict[str, Any]]) -> CoreTables:

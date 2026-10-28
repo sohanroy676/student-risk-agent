@@ -19,9 +19,11 @@
 
   - `feature/richer-features`: 11 more features (marks last/min, submit lead days, LMS trend/active days/forum/quiz, credits, prior attempts); OULAD loader reads `vle.csv` and `studentInfo` context. Real OULAD AUC: week 1 0.680, week 8 0.781 (was 0.666 / 0.779) - targets 0.72 / 0.86 still NOT met
 
+  - `feature/vle-activity-features` (branched from `main`, not pushed): `ACTIVITY_EVENT_TYPES` covers all 20 vle.csv types; 8 new LMS features per event type (+14d content/homepage); Hypothesis leakage test now uses typed, weighted LMS events. Real OULAD AUC wk1 0.680, wk8 0.779: no gain for logistic regression
+
 ## Next
 
-- Close the AUC gap on real OULAD (see activeContext), then review and merge the stacked v0.2 branches
+- LightGBM vs logistic regression on `feature/lightgbm-compare` (stacked on the branch above), then report whether the targets are met and recommend whether to relax them; then review and merge the v0.2 branches
 
 ## Unverified
 

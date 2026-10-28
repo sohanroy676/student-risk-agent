@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from app.features.snapshot import build_snapshot
-from app.ingest.oulad import load_oulad, presentation_start
+from app.ingest.oulad import ACTIVITY_EVENT_TYPES, load_oulad, presentation_start
 
 
 def test_presentation_start_maps_codes_to_dates() -> None:
@@ -170,7 +170,42 @@ def test_vle_activity_types_become_event_types(oulad_dir: Path) -> None:
         "502,BBB,2013J,oucontent,,\n"
     )
     events = load_oulad(oulad_dir).lms_events
-    assert sorted(events["event_type"]) == ["forum_post", "quiz_attempt", "view", "view"]
+    assert sorted(events["event_type"]) == ["content", "content", "forum_post", "quiz_attempt"]
+
+
+def test_all_vle_activity_types_are_grouped(oulad_dir: Path) -> None:
+    expected = {
+        "forumng": "forum_post",
+        "quiz": "quiz_attempt",
+        "externalquiz": "quiz_attempt",
+        "oucontent": "content",
+        "resource": "content",
+        "page": "content",
+        "subpage": "content",
+        "sharedsubpage": "content",
+        "folder": "content",
+        "homepage": "homepage",
+        "url": "url",
+        "oucollaborate": "collab",
+        "ouelluminate": "collab",
+        "ouwiki": "wiki_glossary",
+        "glossary": "wiki_glossary",
+        "dataplus": "wiki_glossary",
+        "htmlactivity": "activity",
+        "repeatactivity": "activity",
+        "questionnaire": "activity",
+        "dualpane": "activity",
+    }
+    assert expected == ACTIVITY_EVENT_TYPES  # the 20 types in the published vle.csv
+    (oulad_dir / "vle.csv").write_text(
+        "id_site,code_module,code_presentation,activity_type\n"
+        "500,AAA,2013J,externalquiz\n"
+        "501,AAA,2013J,homepage\n"
+        "500,AAA,2014J,somethingnew\n"
+        "502,BBB,2013J,url\n"
+    )
+    events = load_oulad(oulad_dir).lms_events
+    assert sorted(events["event_type"]) == ["homepage", "quiz_attempt", "url", "view"]
 
 
 def test_without_vle_file_every_click_is_a_view(oulad_dir: Path) -> None:

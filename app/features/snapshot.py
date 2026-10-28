@@ -35,9 +35,29 @@ COUNT_FEATURES = (
     "lms_active_days_14d",
     "lms_forum_events",
     "lms_quiz_events",
+    "lms_content_events",
+    "lms_homepage_events",
+    "lms_url_events",
+    "lms_collab_events",
+    "lms_wiki_glossary_events",
+    "lms_activity_events",
+    "lms_content_events_14d",
+    "lms_homepage_events_14d",
     "fees_overdue_count",
     "fees_overdue_amount",
 )
+# LMS event_type -> total-clicks feature; the two in RECENT_LMS_TYPES also get a 14-day count.
+LMS_TYPE_FEATURES = {
+    "forum_post": "lms_forum_events",
+    "quiz_attempt": "lms_quiz_events",
+    "content": "lms_content_events",
+    "homepage": "lms_homepage_events",
+    "url": "lms_url_events",
+    "collab": "lms_collab_events",
+    "wiki_glossary": "lms_wiki_glossary_events",
+    "activity": "lms_activity_events",
+}
+RECENT_LMS_TYPES = ("content", "homepage")
 FEATURE_NAMES = (
     "classes_held",
     "attendance_rate",
@@ -57,6 +77,14 @@ FEATURE_NAMES = (
     "lms_active_days_14d",
     "lms_forum_events",
     "lms_quiz_events",
+    "lms_content_events",
+    "lms_homepage_events",
+    "lms_url_events",
+    "lms_collab_events",
+    "lms_wiki_glossary_events",
+    "lms_activity_events",
+    "lms_content_events_14d",
+    "lms_homepage_events_14d",
     "days_since_last_lms",
     "fees_overdue_count",
     "fees_overdue_amount",
@@ -117,8 +145,9 @@ def _assessments(t: CoreTables, ids: pd.Index, day_end: pd.Timestamp) -> pd.Data
             .sum(),
             "marks_pct_mean": pct.groupby(scored["student_id"]).mean(),
             "marks_pct_last": latest.groupby("student_id")["pct"].last(),
-            "marks_pct_min": pct.groupby(scored["student_id"]).min(),
-            # Positive = handed in before the deadline, negative = after it.
+            "marks_pct_min": pct.groupby(
+                scored["student_id"]
+            ).min(),  # Positive = handed in before the deadline, negative = after it.
             "submit_lead_days_mean": lead_days.groupby(lead_basis["student_id"]).mean(),
         }
     )
@@ -139,11 +168,13 @@ def _lms(t: CoreTables, ids: pd.Index, day_end: pd.Timestamp) -> pd.DataFrame:
     def window_sum(mask: pd.Series) -> pd.Series:
         return weight[mask].groupby(ev.loc[mask, "student_id"]).sum()
 
+    by_type: dict[str, pd.Series] = {}
     if "event_type" in ev.columns:
-        forum = window_sum(ev["event_type"] == "forum_post")
-        quiz = window_sum(ev["event_type"] == "quiz_attempt")
-    else:
-        forum = quiz = pd.Series(dtype=float)
+        for event_type, name in LMS_TYPE_FEATURES.items():
+            is_type = ev["event_type"] == event_type
+            by_type[name] = window_sum(is_type)
+            if event_type in RECENT_LMS_TYPES:
+                by_type[f"{name}_14d"] = window_sum(is_type & recent)
     last_14 = window_sum(recent)
     prev_14 = window_sum(previous)
     return pd.DataFrame(
@@ -156,8 +187,7 @@ def _lms(t: CoreTables, ids: pd.Index, day_end: pd.Timestamp) -> pd.DataFrame:
             "lms_active_days_14d": active_day[recent]
             .groupby(ev.loc[recent, "student_id"])
             .nunique(),
-            "lms_forum_events": forum,
-            "lms_quiz_events": quiz,
+            **by_type,
             "days_since_last_lms": (day_end - pd.Timedelta(days=1) - last_day).dt.days,
         }
     )
