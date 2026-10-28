@@ -40,6 +40,13 @@ v0.3 "Model and explanations" is merged to `main` (PR #3) and tagged `v0.3.0`; C
 - Students with no row in `app.mentor_assignments` are reported as unassigned and get no case. Mentor ids are free text for now (OIDC subject later). Nothing populates `app.mentor_assignments` yet (admin API / import still to do).
 - Hypothesis found that `unassigned` order depended on input order; now sorted.
 
+## v0.4 nightly pipeline decisions (2026-10-28)
+- One scheduled Celery task (`app.jobs.nightly.run_nightly`, 01:00 in `APP_TIMEZONE`, default UTC) runs `run_pipeline`: CSV ingest, `load_core_tables` + `build_snapshot`, scoring, `run_night`, reasons, `run_timers`. Scoring, cases, reasons and timers share one transaction. A data-quality `fail` keeps raw rows and the report, then raises `DataQualityFailed` before any scoring.
+- Model: `Registry.load_production(week)` (raises `NoProductionModel`). Week = whole weeks since the term start; the latest trained week at or before it is used, falling back to earlier weeks, error if none. A night outside any term succeeds with `skipped` and still runs the timers; overlapping terms use the latest start.
+- Reasons: top 3 per open case, stored in `app.case_reasons` (migration 0004), `fact_id` = `case-<id>/<feature>/<as_of>` (case reference, no student id), replaced on a re-run, refreshed every night for every open case. Mentor-only; nothing reads them yet.
+- Worker refuses to start without `REDIS_URL`; settings added: `APP_TIMEZONE`, `CSV_DIR`, `MODEL_STORE`. `worker` and `beat` services are in `docker-compose.yml` (not run: no Docker).
+- Generator takes `n_students` (default output unchanged). The 5,000-student timing test (budget 30 min, second night so it is a normal re-ingest) runs only with Postgres; its measured time is in the CI log of the branch run.
+
 ## Next step
-`feature/nightly-pipeline` (case engine merged, `main` at 7cef506, CI green): Celery task chaining CSV ingest, `load_core_tables` + `build_snapshot` (as_of = today), scoring with the registry `production` alias (add a model loader to `registry.py` first), `run_night`, `run_timers`; 5,000 students in under 30 minutes. Push the branch and dispatch CI before merging (no local Postgres). Then audit chain, core APIs, JWT auth + RBAC/RLS, Moodle (deferred); tag `v0.4.0` last.
-Open: re-run the fairness audit and gate on the red band (decision 1); nothing fills `app.mentor_assignments` yet. Demographics must not be added as features.
+Audit chain, core APIs, JWT auth + RBAC/RLS; Moodle connector deferred; tag `v0.4.0` last, only when all are done and CI is green on `main`.
+Open: `app.mentor_assignments` is still empty (plan: CSV import in the connector; admin API after auth); re-run the fairness audit and gate on the red band (own branch); the manual v0.3 checks (read a model card, reasons for 10 students). Demographics must not be added as features.
