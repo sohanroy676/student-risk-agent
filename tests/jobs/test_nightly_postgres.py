@@ -206,7 +206,7 @@ BUDGET_S = 30 * 60
 
 
 def test_a_night_on_five_thousand_students_fits_the_thirty_minute_budget(
-    engine: Engine, tmp_path: Path, registry: Registry
+    engine: Engine, tmp_path: Path, registry: Registry, capsys: pytest.CaptureFixture[str]
 ) -> None:
     folder = tmp_path / "erp5000"
     generator.write_csv(generator.generate(seed=1, n_students=5000), folder)
@@ -215,7 +215,8 @@ def test_a_night_on_five_thousand_students_fits_the_thirty_minute_budget(
     started = time.perf_counter()
     summary = _night(engine, folder, registry)  # a normal night: re-ingest, score, cases
     elapsed = time.perf_counter() - started
-    print(f"nightly run on 5,000 students: {elapsed:.0f} s")  # noqa: T201
+    with capsys.disabled():  # so the number shows in the CI log of a passing run
+        print(f"\nnightly run on 5,000 students: {elapsed:.0f} s")
     assert summary.scored == 5000
     assert summary.opened > 0 and summary.reasons > 0
     assert elapsed < BUDGET_S, f"{elapsed:.0f} s exceeds the {BUDGET_S} s budget"
