@@ -16,8 +16,8 @@ v0.3 "Model and explanations" is merged to `main` (PR #3) and tagged `v0.3.0`; C
 - Datasets live in git-ignored `data/open_university_learning_analytics_dataset/` and `data/predict_students_dropout_and_academic_success/`.
 
 ## Blockers / open questions
-- Still unverified: `docker compose up` (no Docker on this machine) and `cd web && npm run build`.
-- Pinned versions were taken from pip at 2026-10-27; web versions (next 15.5.9 etc.) were not build-tested.
+- Still unverified: `docker compose up` (no Docker on this machine); `npm run build` is now verified.
+- Pinned versions were taken from pip at 2026-10-27; web versions (next 15.5.9 etc.) now build and pass lint and the Playwright tests.
 - `tests/features/test_db.py` needs Postgres; CI passes it (run on PR #3 and the merge commit).
 - Targets relaxed by the user's decision (2026-10-28): 0.68 week 1, 0.79 week 8 on OULAD. Re-check 0.72 / 0.86 on real college data, which has attendance and fees.
 - Dockerfile `libgomp1` (needed by LightGBM) is unverified: no Docker locally.
@@ -109,6 +109,17 @@ v0.3 "Model and explanations" is merged to `main` (PR #3) and tagged `v0.3.0`; C
 - There is no faculty-to-student teaching link in the data, so any faculty member can raise a concern about any student id; a 404 on an unknown id lets a faculty member test whether an id exists (accepted; the daily cap limits it). Add a section or teaching link check when the college data has one.
 - Contract test change: faculty now reach `POST` and `GET /api/concerns` (`FACULTY_ROUTES`); every other route still gives them 403 before any data is read.
 - Postgres tests (`tests/api/test_concerns_postgres.py`) have only run in CI.
+
+## v0.5 web shell decisions (2026-10-28)
+- `feature/faculty-concerns` is merged to `main` (d57a9b5), CI and Scale green.
+- `cd web && npm run build` is now verified (it builds, and CI builds it). Lint was broken in the scaffold (`eslint-config-next` imported straight into a flat config crashed ESLint); `web/eslint.config.mjs` now uses `FlatCompat` (`@eslint/eslintrc` pinned). `npm run lint`, `npx prettier --check .` and `npm run typecheck` pass.
+- `npm audit` reports 3 findings (1 critical, 2 high) in `next`/`sharp` image handling; the app does not use `next/image`, and the fix (`npm audit fix --force`, next 15.5.28) is outside the pinned range, so it was left alone. Decide when to bump `next`.
+- Browser to API: the browser calls `/backend/*`, which `next.config.ts` rewrites to `API_URL` (default `http://localhost:8000`) at build time, so the API needs no CORS rules. Compose passes `API_URL=http://api:8000` and `NEXT_PUBLIC_DEV_TOKEN_LOGIN` as build args (not run: no Docker).
+- Sign-in is DEV ONLY: `/login` shows a paste-a-token form only when the build has `NEXT_PUBLIC_DEV_TOKEN_LOGIN=true`; the token lives in `sessionStorage`, and the role is read from it (unverified) only to choose screens. The API checks everything. A 401 clears it and returns to `/login`. Real OIDC with an httpOnly cookie replaces this. Locally: `NEXT_PUBLIC_DEV_TOKEN_LOGIN=true npm run dev` in `web/`.
+- `python -m app.core.dev_token --role mentor --sub m1` mints tokens with a key kept in `.dev-keys/` (git-ignored); `--show-public-key` prints the `JWT_PUBLIC_KEY` line. It refuses when `APP_ENV` is production and needs `JWT_ISSUER` and `JWT_AUDIENCE`.
+- Screens: `/login`, `/` (routes by role), `/caseload` and `/cases/[id]` for mentor, staff and admin. Only the band is shown (as words and colour); reasons and the draft come only as the API gives them (mentor and staff). A mentor edits the draft only while `drafted` and the Approve button is disabled while there are unsaved edits. Admin reads only. Faculty see "no screens for your role yet" and the app makes no case request for them. Button rules in `web/lib/actions.ts` mirror `app/cases/states.py`; the API still decides.
+- Playwright (`@playwright/test` 1.55.0, Chromium): 18 tests in `web/e2e/` against a fake API at the network layer (`e2e/fake-api.ts`), so no backend or database. They cover sign-in/out, expired and role-less tokens, 401, the mentor approve flow, refused moves, hostile text, roles, and no sideways scroll at 375 px. CI builds and starts the app first. A new `web` CI job runs lint, prettier, typecheck and these tests (`tests/test_ci_layout.py` checks the job exists).
+- The fake API is a stand-in: a real mentor end-to-end run against the API and Postgres is still manual (Docker needed) and listed under Unverified.
 
 ## Next step
 Merge `feature/admin-api` (branch CI green, run 40691561309), check both workflows on `main`, then tag `v0.4.0` (ask first). After v0.4: fairness audit and gate re-run on the red band, before the v0.5 models and fairness screen.
