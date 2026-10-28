@@ -1,7 +1,7 @@
 # Active Context
 
 ## Current focus
-v0.2 "Data and baseline model" code is complete and merged to `main`: loaders, `build_snapshot` with Hypothesis leakage test, rule score, weekly logistic regression, richer features, report CLI. **The real-OULAD AUC targets are not met**: week 1 0.680 (target 0.72), week 8 0.781 (target 0.86). Closing that gap is the next task. `setup.md` documents project setup from scratch.
+v0.2 "Data and baseline model" code is complete and merged to `main`: loaders, `build_snapshot` with Hypothesis leakage test, rule score, weekly logistic regression, richer features, report CLI. On real OULAD the original AUC targets (0.72 / 0.86) are unreachable without demographics; they were relaxed to week 1 >= 0.68 and week 8 >= 0.79 (still the goal on our own college's data). LightGBM meets them (0.683 / 0.798); logistic regression does not at week 8 (0.779). `setup.md` documents project setup from scratch.
 
 ## Recent decisions
 - Initial migration includes core ERP tables plus `restricted.student_attributes`; `ml`, `app`, `gov` are empty schemas.
@@ -19,7 +19,8 @@ v0.2 "Data and baseline model" code is complete and merged to `main`: loaders, `
 - Still unverified: `docker compose up` (no Docker on this machine) and `cd web && npm run build`.
 - Pinned versions were taken from pip at 2026-10-27; web versions (next 15.5.9 etc.) were not build-tested.
 - `tests/features/test_db.py` needs Postgres; verified only by CI.
-- The 0.86 week-8 target may be unreachable without demographics, which the design rules forbid. Decide whether to relax the target if features and LightGBM don't close the gap.
+- Targets relaxed by the user's decision (2026-10-28): 0.68 week 1, 0.79 week 8 on OULAD. Re-check 0.72 / 0.86 on real college data, which has attendance and fees.
+- Dockerfile `libgomp1` (needed by LightGBM) is unverified: no Docker locally.
 
 ## Next step
-Close the AUC gap. Per-activity-type features are done on `feature/vle-activity-features` (20 vle.csv types grouped into 8 event types, 8 new features) but gave no logistic-regression gain: wk1 / wk2 / wk4 / wk6 / wk8 = 0.680 / 0.677 / 0.719 / 0.748 / 0.779 (was 0.680 / - / - / - / 0.781). Assessment weights (weighted mark pct, weight missed) were tried and dropped: wk8 0.785 but wk4 0.714 and wk6 0.742, so mixed. LightGBM vs logistic regression is on `feature/lightgbm-compare` (stacked on that branch; `python -m app.ml.report --oulad DIR --model both`; fixed small regularised trees, not tuned on the test year). Real OULAD test AUC, logreg / LightGBM: wk1 0.680 / 0.683, wk2 0.677 / 0.681, wk4 0.719 / 0.740, wk6 0.748 / 0.772, wk8 0.779 / 0.798. Targets 0.72 (wk1) and 0.86 (wk8) are NOT met. Ablation: LightGBM without the 8 activity features scores the same (wk1 0.683, wk8 0.799), so they add nothing. **Decision pending from the user**: relax the targets (recommended), and whether to keep or drop the activity features. Demographics must not be added. Then v0.3 "Model and explanations" per `docs/DETAILED_ROADMAP.md`. Next-session prompt is in `memory-bank/nextSessionPrompt.md`.
+Review and merge the stacked v0.2 branches plus `feature/lightgbm-compare` and `fix/drop-activity-features` (merge summary given in chat). Then v0.3 "Model and explanations" per `docs/DETAILED_ROADMAP.md` (LightGBM is already available via `app/ml/baseline.py` `MODELS`). Real OULAD test AUC, logreg / LightGBM: wk1 0.680 / 0.683, wk2 0.677 / 0.681, wk4 0.719 / 0.740, wk6 0.748 / 0.772, wk8 0.779 / 0.798. Per-activity-type click features and assessment weights were tried and dropped (no gain; activity features reverted in `b066aae`). Demographics must not be added.

@@ -34,7 +34,7 @@ Each version lists what is done, what to test (A = automatic, M = manual), and t
 
 \- M: view the AUC-by-week chart and compare with the benchmark.
 
-\*\*Expected:\*\* zero leakage failures; baseline AUC reported per week, trending toward 0.72 (week 1) and 0.86 (week 8).
+\*\*Expected:\*\* zero leakage failures; baseline AUC reported per week, AUC of at least 0.68 (week 1) and 0.79 (week 8) on OULAD, relaxed from the blueprint's 0.72 and 0.86 (still the goal on our own college's data).
 
 
 

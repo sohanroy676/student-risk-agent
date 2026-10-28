@@ -19,13 +19,14 @@
 
   - `feature/richer-features`: 11 more features (marks last/min, submit lead days, LMS trend/active days/forum/quiz, credits, prior attempts); OULAD loader reads `vle.csv` and `studentInfo` context. Real OULAD AUC: week 1 0.680, week 8 0.781 (was 0.666 / 0.779) - targets 0.72 / 0.86 still NOT met
 
-  - `feature/vle-activity-features` (branched from `main`, not pushed): `ACTIVITY_EVENT_TYPES` covers all 20 vle.csv types; 8 new LMS features per event type (+14d content/homepage); Hypothesis leakage test now uses typed, weighted LMS events. Real OULAD AUC wk1 0.680, wk8 0.779: no gain for logistic regression
+  - `feature/vle-activity-features`: 8 per-activity-type LMS features; no AUC gain, reverted by `fix/drop-activity-features` (commit `b066aae`). Assessment weights also tried and dropped
 
-  - `feature/lightgbm-compare` (stacked on the branch above, not pushed): `lightgbm==4.7.0` pinned, `make_lgbm()` and `MODELS` registry in `app/ml/baseline.py`, `--model {logreg,lgbm,both}` in the report CLI, `libgomp1` added to the Dockerfile (image build NOT verified). Real OULAD wk1 0.683, wk8 0.798 (LightGBM): targets still NOT met
+  - `feature/lightgbm-compare` (stacked on the branch above, not pushed): `lightgbm==4.7.0` pinned, `make_lgbm()` and `MODELS` registry in `app/ml/baseline.py`, `--model {logreg,lgbm,both}` in the report CLI, `libgomp1` added to the Dockerfile (image build NOT verified). Real OULAD wk1 0.683, wk8 0.798 (LightGBM): targets relaxed to 0.68 / 0.79 and met by LightGBM
+  - `fix/drop-activity-features`: revert of the activity features; AUC targets in `app/ml/report.py`, roadmap, brief and setup relaxed to 0.68 / 0.79
 
 ## Next
 
-- User decides whether to relax the AUC targets and whether to keep the activity features; then review and merge the v0.2 branches, then v0.3
+- Review and merge the v0.2 branches, `feature/lightgbm-compare` and `fix/drop-activity-features`; then v0.3
 
 ## Unverified (added)
 

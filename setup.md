@@ -112,8 +112,8 @@ python -m app.ml.report --oulad data/open_university_learning_analytics_dataset 
 ```
 
 Takes about two minutes. It trains on the 2013 presentations, tests on 2014, and writes
-`docs/baseline.csv` and `docs/baseline.png` (AUC by week for the logistic regression and the
-rule score, with the 0.72 week-1 and 0.86 week-8 targets). Current results are in
+`docs/baseline.csv` and `docs/baseline.png` (AUC by week for the logistic regression, LightGBM and the
+rule score, with the 0.68 week-1 and 0.79 week-8 targets). Current results are in
 `memory-bank/progress.md`.
 
 ## 8. Postgres, migrations and the Postgres-backed tests
