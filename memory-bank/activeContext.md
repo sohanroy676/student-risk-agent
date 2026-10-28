@@ -92,6 +92,14 @@ v0.3 "Model and explanations" is merged to `main` (PR #3) and tagged `v0.3.0`; C
 - Known gap: two admins promoting at once could both pass the gate against the old production model; accepted for an admin-only action.
 - `Registry` gained `releases`, `release`, `card`, `assess`, `promote_release`; the production flag comes from the alias lookup (version search does not return aliases).
 
+## v0.5 case drafts decisions (2026-10-28)
+- The models API (`feature/models-api`) is merged to `main` (a59b142), CI and Scale green. The drafts-and-concerns item was split: `feature/case-drafts` first, `feature/faculty-concerns` next.
+- Migration 0009 `app.case_drafts` (case_id, version, source `template|agent|mentor`, author, created_on, message 1-1000 chars): append-only versions; the API role can only SELECT and INSERT. Mentor and staff read, only the case's own mentor inserts (source `mentor`); admin and faculty see none (same audience as reasons).
+- `app/cases/drafts.py` (pure): two template texts (first contact; follow-up for cycle 2+) and `check_message`, which every message must pass: trimmed, not empty, at most 1000 chars, no control characters except newline, and none of the banned whole words (risk, score, band, probability, predict*, flag*, amber, dropout, red band/zone/flag). The templates pass their own check. v0.6 should reuse `BANNED` for the validator.
+- The nightly job calls `draft_new_cases` after reasons: each `new` case gets template version 1 and `save_plan` runs as actor `agent`, author `template` (the template fallback of drafting; the v0.6 agent will write real drafts). The summary and audit count `drafted`. Nothing is sent; the mentor still approves.
+- `PUT /api/cases/{id}/draft` (`{message}`, extra fields refused): the case's own mentor only (staff and admin 403, another mentor's case is a 404), only while the case is `drafted` (409 otherwise; approval freezes the text), 422 for an invalid message. Saving identical wording adds nothing. An edit writes event and audit entry `draft_edited` with the version number only, never the wording. Case detail returns the latest `draft` to mentor and staff (null for admin).
+- Postgres tests for all of this (in `tests/cases/test_store.py`, `tests/api/test_cases_postgres.py`, `tests/jobs/test_nightly_postgres.py`) have only run in CI.
+
 ## Next step
 Merge `feature/admin-api` (branch CI green, run 40691561309), check both workflows on `main`, then tag `v0.4.0` (ask first). After v0.4: fairness audit and gate re-run on the red band, before the v0.5 models and fairness screen.
 Open: re-run the fairness audit and gate on the red band (own branch); the manual v0.3 checks (read a model card, reasons for 10 students); optional pytest-xdist to trim `checks`. Demographics must not be added as features.
