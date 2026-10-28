@@ -9,11 +9,16 @@ with each version as tags, so the current model's numbers can be read back for t
 import json
 import math
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import mlflow
+import mlflow.artifacts
 from mlflow import MlflowClient
+from mlflow.entities.model_registry import ModelVersion
 
+from app.ml.baseline import WEEKS
 from app.ml.calibrate import CalibratedModel
 from app.ml.gate import GateResult, Metrics, SignOff, check
 
@@ -54,6 +59,57 @@ def metrics_from_json(text: str) -> Metrics:
         auc_week4=number(raw["auc_week4"]),
         ece=number(raw["ece"]),
         recall_gaps={k: number(v) for k, v in raw["recall_gaps"].items()},
+    )
+
+
+class NoSuchRelease(LookupError):
+    """No registered release has that number."""
+
+
+class AlreadyProduction(ValueError):
+    """The release already holds the production alias."""
+
+
+@dataclass(frozen=True)
+class ReleaseInfo:
+    """One registered release as read back from the store (aggregates only)."""
+
+    release: int
+    run_id: str
+    created_ms: int
+    versions: Mapping[int, str]  # week -> model version
+    metrics: Metrics | None  # None when the tag is missing or unreadable
+    gate: Mapping[str, Any] | None  # the verdict recorded when the gate last ran
+    sign_off: Mapping[str, str] | None
+    production: bool
+
+
+def _tag_json(version: ModelVersion, key: str) -> Any:
+    text = version.tags.get(key)
+    if text is None:
+        return None
+    try:
+        return json.loads(text)
+    except ValueError:
+        return None
+
+
+def _describe(
+    run_id: str, anchor: ModelVersion, versions: Mapping[int, str], production: str | None
+) -> ReleaseInfo:
+    try:
+        metrics = metrics_from_json(anchor.tags["gate_metrics"])
+    except (KeyError, ValueError, TypeError, AttributeError):
+        metrics = None
+    return ReleaseInfo(
+        release=int(anchor.version),
+        run_id=run_id,
+        created_ms=int(anchor.creation_timestamp),
+        versions=versions,
+        metrics=metrics,
+        gate=_tag_json(anchor, "gate_result"),
+        sign_off=_tag_json(anchor, "sign_off"),
+        production=str(anchor.version) == production,
     )
 
 
@@ -124,6 +180,52 @@ class Registry:
                 )
                 versions[week] = version
         return versions
+
+    def _production_version(self, week: int) -> str | None:
+        try:
+            return str(self.client.get_model_version_by_alias(model_name(week), ALIAS).version)
+        except mlflow.exceptions.MlflowException:
+            return None
+
+    def _by_run(self, week: int) -> dict[str, ModelVersion]:
+        found = self.client.search_model_versions(f"name='{model_name(week)}'")
+        return {v.run_id: v for v in found if v.run_id}
+
+    def releases(self) -> list[ReleaseInfo]:
+        """Every registered release, newest first. A release is the set of weekly versions
+        logged by one run; its number is the week-4 version."""
+        by_week = {week: self._by_run(week) for week in WEEKS}
+        production = self._production_version(GATE_WEEK)
+        found = []
+        for run_id, anchor in by_week.get(GATE_WEEK, {}).items():
+            versions = {
+                week: str(runs[run_id].version) for week, runs in by_week.items() if run_id in runs
+            }
+            found.append(_describe(run_id, anchor, versions, production))
+        return sorted(found, key=lambda info: info.release, reverse=True)
+
+    def release(self, number: int) -> ReleaseInfo:
+        for info in self.releases():
+            if info.release == number:
+                return info
+        raise NoSuchRelease(f"no release {number}")
+
+    def card(self, info: ReleaseInfo) -> str:
+        return str(mlflow.artifacts.load_text(f"runs:/{info.run_id}/model_card.md"))
+
+    def assess(self, info: ReleaseInfo, sign_off: SignOff | None = None) -> GateResult:
+        """What the gate says about a registered release now, without moving anything."""
+        if info.metrics is None:
+            raise ValueError("this release has no usable recorded metrics")
+        return check(info.metrics, self.current_metrics(), sign_off)
+
+    def promote_release(self, info: ReleaseInfo, sign_off: SignOff | None = None) -> GateResult:
+        """Run the gate for an already registered release; the alias moves only if it passes."""
+        if info.production:
+            raise AlreadyProduction(f"release {info.release} is already in production")
+        if info.metrics is None:
+            raise ValueError("this release has no usable recorded metrics")
+        return self.promote(info.versions, info.metrics, sign_off)
 
     def promote(
         self, versions: Mapping[int, str], candidate: Metrics, sign_off: SignOff | None = None
