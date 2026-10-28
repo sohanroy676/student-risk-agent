@@ -9,7 +9,11 @@
 - Synthetic generator (6 sections, 400 students, 15-week term, 40 planted) with tests
 - CI bootstrap tolerance removed, alembic step added
 
-## In progress
+## Done (v0.2, v0.3)
+
+- v0.2 merged and tagged `v0.2.0`; v0.3 merged (PR #3) and tagged `v0.3.0`, CI green on `fabe83d`. Details below.
+
+## Branch history
 
 - v0.2 "Data and baseline model", one branch per item, stacked on `docs/post-v0.1` (nothing pushed):
   - `feature/dataset-loaders`: OULAD and UCI loaders done (`app/ingest/oulad.py`, `uci.py`); pandas added. Fixture tests only; real files not yet checked (UCI column names are from memory)
@@ -32,7 +36,7 @@
 
 ## Next
 
-- Review and merge the v0.2 branches, `feature/lightgbm-compare` and `fix/drop-activity-features`; then v0.3
+- v0.4 Backend and integration (see activeContext)
 
 ## Unverified (added)
 
