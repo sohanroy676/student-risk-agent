@@ -22,5 +22,10 @@ v0.2 "Data and baseline model" code is complete and merged to `main`: loaders, `
 - Targets relaxed by the user's decision (2026-10-28): 0.68 week 1, 0.79 week 8 on OULAD. Re-check 0.72 / 0.86 on real college data, which has attendance and fees.
 - Dockerfile `libgomp1` (needed by LightGBM) is unverified: no Docker locally.
 
+## v0.3 status (2026-10-28)
+- `feature/calibrated-lgbm` done, not pushed. ECE target met every week. The 2x top-10% lift target is structurally out of reach on OULAD: test at-risk rate is 42-48%, so max lift is about 2.1-2.4 (needs ~96% precision at week 1); best result 1.99 at week 8. Decide whether to restate it (e.g. lift vs achievable max, or top-5%) before the promotion gate uses it.
+- Calibrated model is fitted on 2013B only (2013J is the validation set), costing 0.01-0.03 AUC versus plain LightGBM. Gate on week-4 AUC should compare calibrated candidates with each other.
+- Remaining v0.3 branches: `feature/shap-reasons`, `feature/fairness-report`, `feature/model-registry-gate`.
+
 ## Next step
 Review and merge the stacked v0.2 branches plus `feature/lightgbm-compare` and `fix/drop-activity-features` (merge summary given in chat). Then v0.3 "Model and explanations" per `docs/DETAILED_ROADMAP.md` (LightGBM is already available via `app/ml/baseline.py` `MODELS`). Real OULAD test AUC, logreg / LightGBM: wk1 0.680 / 0.683, wk2 0.677 / 0.681, wk4 0.719 / 0.740, wk6 0.748 / 0.772, wk8 0.779 / 0.798. Per-activity-type click features and assessment weights were tried and dropped (no gain; activity features reverted in `b066aae`). Demographics must not be added.

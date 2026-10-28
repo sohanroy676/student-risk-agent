@@ -24,6 +24,9 @@
   - `feature/lightgbm-compare` (stacked on the branch above, not pushed): `lightgbm==4.7.0` pinned, `make_lgbm()` and `MODELS` registry in `app/ml/baseline.py`, `--model {logreg,lgbm,both}` in the report CLI, `libgomp1` added to the Dockerfile (image build NOT verified). Real OULAD wk1 0.683, wk8 0.798 (LightGBM): targets relaxed to 0.68 / 0.79 and met by LightGBM
   - `fix/drop-activity-features`: revert of the activity features; AUC targets in `app/ml/report.py`, roadmap, brief and setup relaxed to 0.68 / 0.79
 
+- v0.3 started, one branch per item (nothing pushed):
+  - `feature/calibrated-lgbm`: `PRODUCTION = "lgbm"`, `app/ml/calibrate.py` (isotonic on the latest training presentation, model fitted on earlier ones; `ece`, `precision_at_top`, `evaluate_calibrated`), report CLI merges the calibrated columns. Real OULAD test: ECE 0.040 / 0.035 / 0.020 / 0.017 / 0.017 for wk1/2/4/6/8 (target 0.05 met); top-10% lift 1.50 / 1.63 / 1.75 / 1.84 / 1.99 (target 2.0 NOT met). Calibrated AUC 0.667 / 0.670 / 0.701 / 0.736 / 0.770, below uncalibrated LightGBM because the model sees only 2013B. Next: `feature/shap-reasons`, `feature/fairness-report`, `feature/model-registry-gate`
+
 ## Next
 
 - Review and merge the v0.2 branches, `feature/lightgbm-compare` and `fix/drop-activity-features`; then v0.3

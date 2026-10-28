@@ -17,6 +17,7 @@ import pandas as pd  # noqa: E402
 
 from app.ingest.oulad import OuladData, load_oulad  # noqa: E402
 from app.ml.baseline import MODELS, evaluate_by_week  # noqa: E402
+from app.ml.calibrate import evaluate_calibrated  # noqa: E402
 
 # Relaxed from the blueprint's 0.72 / 0.86, which OULAD cannot reach without demographics.
 TARGETS = {1: 0.68, 8: 0.79}
@@ -62,9 +63,9 @@ def main() -> None:
 
     data = load_oulad(args.oulad)
     models = list(MODELS) if args.model == "both" else [args.model]
-    results = evaluate_by_week(
-        data.to_core_tables(), oulad_cohort(data, args.test_year), models=models
-    )
+    tables, cohort = data.to_core_tables(), oulad_cohort(data, args.test_year)
+    results = evaluate_by_week(tables, cohort, models=models)
+    results = results.merge(evaluate_calibrated(tables, cohort), on="week")
     args.out.parent.mkdir(parents=True, exist_ok=True)
     results.to_csv(args.out.with_suffix(".csv"), index=False)
     plot_auc_by_week(results, args.out.with_suffix(".png"))
