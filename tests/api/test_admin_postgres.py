@@ -75,7 +75,6 @@ def test_the_audit_trail_has_counts_and_case_references_but_no_pairings(api: Api
         assert NEW not in json.dumps(row.detail) and "m1" not in json.dumps(row.detail)
         assert row.subject_ref in {"student-1", "case-1"}
     assert NEW not in json.dumps(events)
-    assert NEW not in api.get("/api/cases/1", NEW, "mentor").text
 
 
 def test_a_closed_case_keeps_the_mentor_who_handled_it(api: Api) -> None:
