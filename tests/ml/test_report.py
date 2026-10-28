@@ -46,3 +46,40 @@ def test_cli_fails_clearly_on_a_missing_folder(
     monkeypatch.setattr(sys, "argv", ["report", "--oulad", str(tmp_path / "nope")])
     with pytest.raises(ValueError, match="missing"):
         report.main()
+
+
+def test_cli_reports_both_models_by_default_and_one_on_request(
+    oulad_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    both = tmp_path / "both"
+    monkeypatch.setattr(sys, "argv", ["report", "--oulad", str(oulad_dir), "--out", str(both)])
+    report.main()
+    assert {"auc_logreg", "auc_lgbm"} <= set(pd.read_csv(both.with_suffix(".csv")).columns)
+
+    only = tmp_path / "only"
+    argv = ["report", "--oulad", str(oulad_dir), "--out", str(only), "--model", "lgbm"]
+    monkeypatch.setattr(sys, "argv", argv)
+    report.main()
+    columns = set(pd.read_csv(only.with_suffix(".csv")).columns)
+    assert "auc_lgbm" in columns
+    assert "auc_logreg" not in columns
+
+
+def test_cli_rejects_an_unknown_model(
+    oulad_dir: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    argv = ["report", "--oulad", str(oulad_dir), "--out", str(tmp_path / "x"), "--model", "xgb"]
+    monkeypatch.setattr(sys, "argv", argv)
+    with pytest.raises(SystemExit):
+        report.main()
+
+
+def test_plot_draws_lightgbm_when_present(tmp_path: Path) -> None:
+    results = pd.DataFrame(
+        {"week": [1, 8], "auc_lgbm": [0.7, 0.8], "auc_rules": [0.6, 0.8]}
+    )  # no auc_logreg column
+    out = tmp_path / "chart.png"
+    report.plot_auc_by_week(results, out)
+    assert out.stat().st_size > 1000

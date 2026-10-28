@@ -16,9 +16,10 @@ import matplotlib.pyplot as plt  # noqa: E402
 import pandas as pd  # noqa: E402
 
 from app.ingest.oulad import OuladData, load_oulad  # noqa: E402
-from app.ml.baseline import evaluate_by_week  # noqa: E402
+from app.ml.baseline import MODELS, evaluate_by_week  # noqa: E402
 
 TARGETS = {1: 0.72, 8: 0.86}
+MODEL_LABELS = {"auc_logreg": "Logistic regression", "auc_lgbm": "LightGBM"}
 
 
 def oulad_cohort(data: OuladData, test_year: int = 2014) -> pd.DataFrame:
@@ -32,7 +33,9 @@ def oulad_cohort(data: OuladData, test_year: int = 2014) -> pd.DataFrame:
 
 def plot_auc_by_week(results: pd.DataFrame, path: Path) -> None:
     fig, ax = plt.subplots(figsize=(7, 4.5))
-    ax.plot(results["week"], results["auc_logreg"], marker="o", label="Logistic regression")
+    for column, label in MODEL_LABELS.items():
+        if column in results.columns:
+            ax.plot(results["week"], results[column], marker="o", label=label)
     ax.plot(results["week"], results["auc_rules"], marker="s", linestyle="--", label="Rule score")
     ax.scatter(list(TARGETS), list(TARGETS.values()), marker="*", s=160, color="black",
                zorder=3, label="Blueprint target")  # fmt: skip
@@ -53,10 +56,14 @@ def main() -> None:
     parser.add_argument("--oulad", type=Path, required=True, help="folder with the OULAD CSVs")
     parser.add_argument("--out", type=Path, default=Path("docs/baseline"))
     parser.add_argument("--test-year", type=int, default=2014)
+    parser.add_argument("--model", choices=[*MODELS, "both"], default="both")
     args = parser.parse_args()
 
     data = load_oulad(args.oulad)
-    results = evaluate_by_week(data.to_core_tables(), oulad_cohort(data, args.test_year))
+    models = list(MODELS) if args.model == "both" else [args.model]
+    results = evaluate_by_week(
+        data.to_core_tables(), oulad_cohort(data, args.test_year), models=models
+    )
     args.out.parent.mkdir(parents=True, exist_ok=True)
     results.to_csv(args.out.with_suffix(".csv"), index=False)
     plot_auc_by_week(results, args.out.with_suffix(".png"))

@@ -128,3 +128,57 @@ def test_cohort_with_nobody_registered_raises(world: World) -> None:
     gone = cohort.assign(unregistered_on=pd.Timestamp(generator.TERM_START))
     with pytest.raises(ValueError, match="no registered students"):
         evaluate_by_week(to_core_tables(data), gone, weeks=[1])
+
+
+def test_default_evaluates_only_logistic_regression(world: World) -> None:
+    data, cohort = world
+    result = evaluate_by_week(to_core_tables(data), cohort, weeks=[8])
+    assert "auc_logreg" in result.columns
+    assert "auc_lgbm" not in result.columns
+
+
+def test_lightgbm_finds_the_planted_signal(world: World) -> None:
+    data, cohort = world
+    result = evaluate_by_week(to_core_tables(data), cohort, weeks=[8], models=["logreg", "lgbm"])
+    assert result.loc[0, "auc_lgbm"] > 0.9
+
+
+def test_lightgbm_on_shuffled_labels_is_chance_level(world: World) -> None:
+    data, cohort = world
+    shuffled = cohort.copy()
+    shuffled["at_risk"] = np.random.default_rng(0).permutation(cohort["at_risk"].to_numpy())
+    result = evaluate_by_week(to_core_tables(data), shuffled, weeks=[8], models=["lgbm"])
+    assert 0.3 < result.loc[0, "auc_lgbm"] < 0.7
+
+
+def test_lightgbm_never_sees_test_labels(world: World) -> None:
+    data, cohort = world
+    flipped = cohort.copy()
+    test = flipped["split"] == "test"
+    flipped.loc[test, "at_risk"] = ~flipped.loc[test, "at_risk"]
+    tables = to_core_tables(data)
+    normal = evaluate_by_week(tables, cohort, weeks=[6], models=["lgbm"]).loc[0]
+    inverted = evaluate_by_week(tables, flipped, weeks=[6], models=["lgbm"]).loc[0]
+    assert inverted["auc_lgbm"] == pytest.approx(1 - normal["auc_lgbm"])
+
+
+def test_lightgbm_is_deterministic(world: World) -> None:
+    data, cohort = world
+    tables = to_core_tables(data)
+    first = evaluate_by_week(tables, cohort, weeks=[4], models=["lgbm"])
+    second = evaluate_by_week(tables, cohort, weeks=[4], models=["lgbm"])
+    assert first.loc[0, "auc_lgbm"] == second.loc[0, "auc_lgbm"]
+
+
+def test_unknown_model_name_is_rejected(world: World) -> None:
+    data, cohort = world
+    with pytest.raises(ValueError, match="unknown models"):
+        evaluate_by_week(to_core_tables(data), cohort, models=["logreg", "xgboost"])
+
+
+def test_single_class_training_gives_nan_for_every_model(world: World) -> None:
+    data, cohort = world
+    one_class = cohort.copy()
+    one_class.loc[one_class["split"] == "train", "at_risk"] = False
+    result = evaluate_by_week(to_core_tables(data), one_class, weeks=[8], models=["logreg", "lgbm"])
+    assert result[["auc_logreg", "auc_lgbm"]].isna().all().all()

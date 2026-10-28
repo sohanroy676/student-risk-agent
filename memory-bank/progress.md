@@ -21,9 +21,15 @@
 
   - `feature/vle-activity-features` (branched from `main`, not pushed): `ACTIVITY_EVENT_TYPES` covers all 20 vle.csv types; 8 new LMS features per event type (+14d content/homepage); Hypothesis leakage test now uses typed, weighted LMS events. Real OULAD AUC wk1 0.680, wk8 0.779: no gain for logistic regression
 
+  - `feature/lightgbm-compare` (stacked on the branch above, not pushed): `lightgbm==4.7.0` pinned, `make_lgbm()` and `MODELS` registry in `app/ml/baseline.py`, `--model {logreg,lgbm,both}` in the report CLI, `libgomp1` added to the Dockerfile (image build NOT verified). Real OULAD wk1 0.683, wk8 0.798 (LightGBM): targets still NOT met
+
 ## Next
 
-- LightGBM vs logistic regression on `feature/lightgbm-compare` (stacked on the branch above), then report whether the targets are met and recommend whether to relax them; then review and merge the v0.2 branches
+- User decides whether to relax the AUC targets and whether to keep the activity features; then review and merge the v0.2 branches, then v0.3
+
+## Unverified (added)
+
+- Dockerfile `libgomp1` install (no Docker locally)
 
 ## Unverified
 

@@ -1,4 +1,4 @@
-"""Logistic-regression baseline, evaluated week by week.
+"""Logistic-regression baseline and LightGBM, evaluated week by week.
 
 For each week N the feature snapshot is taken at `term_start + 7N days`, a fresh model is
 fitted on the training cohort and scored on the test cohort. The rule-based score is
@@ -12,9 +12,11 @@ The cohort frame is indexed by `student_id` with columns:
 `unregistered_on` (datetime, NaT if the student never left).
 """
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 import pandas as pd
+from lightgbm import LGBMClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
@@ -66,6 +68,28 @@ def make_model() -> Pipeline:
     )
 
 
+def make_lgbm() -> LGBMClassifier:
+    """Small, regularised trees with fixed settings; NaN is handled natively, no imputing."""
+    return LGBMClassifier(
+        n_estimators=300,
+        learning_rate=0.03,
+        num_leaves=15,
+        min_child_samples=50,
+        subsample=0.8,
+        subsample_freq=1,
+        colsample_bytree=0.7,
+        reg_lambda=5.0,
+        random_state=0,
+        deterministic=True,
+        n_jobs=1,
+        verbose=-1,
+    )
+
+
+# Model name -> factory; each name becomes an `auc_<name>` column in the weekly table.
+MODELS: dict[str, Callable[[], Any]] = {"logreg": make_model, "lgbm": make_lgbm}
+
+
 def _auc(y: pd.Series, score: pd.Series | pd.api.extensions.ExtensionArray) -> float:
     if y.nunique() < 2:
         return float("nan")
@@ -73,24 +97,34 @@ def _auc(y: pd.Series, score: pd.Series | pd.api.extensions.ExtensionArray) -> f
 
 
 def evaluate_by_week(
-    tables: CoreTables, cohort: pd.DataFrame, weeks: Sequence[int] = WEEKS
+    tables: CoreTables,
+    cohort: pd.DataFrame,
+    weeks: Sequence[int] = WEEKS,
+    models: Sequence[str] = ("logreg",),
 ) -> pd.DataFrame:
-    """One row per week: sizes, test positive rate and test AUC for the model and the rules."""
+    """One row per week: sizes, test positive rate and test AUC per model and for the rules."""
+    unknown = set(models) - MODELS.keys()
+    if unknown:
+        raise ValueError(f"unknown models {sorted(unknown)}; choose from {sorted(MODELS)}")
     rows = []
     for week in weeks:
         features, y, split = weekly_matrix(tables, cohort, week)
         train, test = split == "train", split == "test"
-        auc_model = float("nan")
-        if y[train].nunique() == 2 and y[test].nunique() == 2:
-            model = make_model().fit(features[train], y[train])
-            auc_model = _auc(y[test], model.predict_proba(features[test])[:, 1])
+        can_fit = y[train].nunique() == 2 and y[test].nunique() == 2
+        aucs = {}
+        for name in models:
+            auc = float("nan")
+            if can_fit:
+                model = MODELS[name]().fit(features[train], y[train])
+                auc = _auc(y[test], model.predict_proba(features[test])[:, 1])
+            aucs[f"auc_{name}"] = auc
         rows.append(
             {
                 "week": week,
                 "n_train": int(train.sum()),
                 "n_test": int(test.sum()),
                 "test_at_risk_rate": float(y[test].mean()) if test.any() else float("nan"),
-                "auc_logreg": auc_model,
+                **aucs,
                 "auc_rules": _auc(y[test], rule_score(features[test]))
                 if test.any()
                 else float("nan"),
