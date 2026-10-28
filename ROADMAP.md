@@ -4,7 +4,7 @@
 - v0.4 Backend and integration, in progress: CSV connector and data-quality report merged; case engine merged; nightly pipeline is next
 
 ## Next
-- v0.4 remaining: nightly Celery pipeline, core APIs, audit log, JWT/OIDC auth with RBAC and row-level security, Moodle connector (deferred)
+- v0.4 remaining: nightly Celery pipeline, core APIs, audit log, JWT/OIDC auth with RBAC and row-level security, (Moodle connector moved out of v0.4)
 - v0.5 Dashboard: caseload, case detail, faculty flag, admin screens, mentor actions with template drafts
 - v0.6 Agent and follow-up: tools, prompt, validator, outbox, 7-day follow-up and escalation, 50-case eval set
 - v1.0 Evaluation and release: full metrics, fairness analysis, security review, usability sessions, docs, test at our own college

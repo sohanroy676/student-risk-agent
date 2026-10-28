@@ -58,7 +58,7 @@ Each version lists what is done, what to test (A = automatic, M = manual), and t
 
 \## v0.4 Backend and integration
 
-\*\*Done:\*\* CSV and Moodle connectors, cleaner and data-quality report, nightly Celery pipeline, case engine (states, timers, hysteresis, rate limits), core APIs, OIDC/Keycloak auth, RBAC and row-level security, hash-chained audit log.
+\*\*Done:\*\* CSV connector (the Moodle connector moved to a later version), cleaner and data-quality report, nightly Celery pipeline, case engine (states, timers, hysteresis, rate limits), core APIs, OIDC/Keycloak auth, RBAC and row-level security, hash-chained audit log.
 
 \*\*Test:\*\*
 
