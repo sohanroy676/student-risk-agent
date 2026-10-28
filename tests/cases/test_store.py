@@ -73,7 +73,7 @@ def _open_case(conn: Connection, student: int = 1) -> int:
 def test_night_opens_cases_stores_scores_and_writes_events(conn: Connection) -> None:
     plan = run_night(conn, [Score(1, 0.9), Score(2, 0.4), Score(3, 0.1)], DAY, CFG)
     assert [c.student_id for c in plan.opened] == [1]
-    bands = dict(conn.execute(text("SELECT student_id, band FROM app.risk_scores")).tuples())
+    bands = dict(conn.execute(text("SELECT student_id, band FROM app.risk_scores")).tuples().all())
     assert bands == {1: "red", 2: "amber", 3: "green"}
     row = conn.execute(text("SELECT state, due_on, mentor_id FROM app.cases")).one()
     assert (row.state, row.due_on, row.mentor_id) == ("new", DAY + timedelta(days=1), "m1")

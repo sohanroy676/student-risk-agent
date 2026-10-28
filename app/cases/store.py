@@ -63,7 +63,9 @@ def _history(conn: Connection, ids: list[int], as_of: date, cfg: CaseConfig) -> 
                 "ORDER BY student_id, as_of DESC"
             ),
             {"ids": ids, "as_of": as_of},
-        ).tuples()
+        )
+        .tuples()
+        .all()
     )
     earlier: dict[int, float] = dict(
         conn.execute(
@@ -73,7 +75,9 @@ def _history(conn: Connection, ids: list[int], as_of: date, cfg: CaseConfig) -> 
                 "ORDER BY student_id, as_of DESC"
             ),
             {"ids": ids, "week": week, "floor": week - timedelta(days=WEEK_AGO_SLACK_DAYS)},
-        ).tuples()
+        )
+        .tuples()
+        .all()
     )
     open_ids = set(
         conn.execute(
@@ -90,7 +94,9 @@ def _history(conn: Connection, ids: list[int], as_of: date, cfg: CaseConfig) -> 
                 "WHERE student_id = ANY(:ids) AND closed_on IS NOT NULL GROUP BY student_id"
             ),
             {"ids": ids},
-        ).tuples()
+        )
+        .tuples()
+        .all()
     )
     return {
         i: History(
@@ -116,7 +122,9 @@ def run_night(
                 "WHERE student_id = ANY(:ids)"
             ),
             {"ids": ids},
-        ).tuples()
+        )
+        .tuples()
+        .all()
     )
     opened_today: dict[str, int] = dict(
         conn.execute(
@@ -125,7 +133,9 @@ def run_night(
                 "WHERE opened_on = :as_of GROUP BY mentor_id"
             ),
             {"as_of": as_of},
-        ).tuples()
+        )
+        .tuples()
+        .all()
     )
     plan = plan_night(scores, _history(conn, ids, as_of, cfg), mentors, as_of, cfg, opened_today)
     if scores:
