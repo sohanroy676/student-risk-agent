@@ -17,7 +17,12 @@ TIME_LIMIT_S = 60 * 60
 
 def make_celery(settings: Settings) -> Celery:
     """Build the app; with no REDIS_URL it uses an in-process broker so imports still work."""
-    app = Celery("risk", broker=settings.redis_url or "memory://", set_as_current=False)
+    app = Celery(
+        "risk",
+        broker=settings.redis_url or "memory://",
+        include=["app.jobs.nightly"],
+        set_as_current=False,
+    )
     app.conf.update(
         timezone=settings.app_timezone,
         enable_utc=True,
