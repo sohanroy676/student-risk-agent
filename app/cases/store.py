@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from sqlalchemy import Connection, text
+from sqlalchemy.exc import IntegrityError
 
 from app.cases.bands import Band
 from app.cases.config import CaseConfig
@@ -291,3 +292,71 @@ def run_timers(conn: Connection, today: date, cfg: CaseConfig | None = None) -> 
     for case_id, state in sorted(late):
         _event(conn, case_id, today, "overdue", State(state), State(state), Actor.SYSTEM, None)
     return TimerResult(list(due), sorted(i for i, _ in late))
+
+
+class UnknownStudent(LookupError):
+    """The student id is not in `core.students`."""
+
+
+@dataclass(frozen=True)
+class Assignment:
+    changed: bool
+    cases_moved: int
+
+
+def assign_mentor(
+    conn: Connection, student_id: int, mentor_id: str, admin_id: str, today: date
+) -> Assignment:
+    """Set the student's mentor and move their open case to that mentor, in one transaction.
+
+    A closed case keeps the mentor who handled it (it is history); a later reopen takes the
+    current assignment. The audit entries carry counts and `case-<id>` references only, never
+    which mentor holds which student. Setting the mentor a student already has changes nothing,
+    but still moves an open case that has drifted from the assignment (an earlier CSV change
+    does not move open cases). Must run as an admin: row-level security refuses others.
+    """
+    current = conn.execute(
+        text("SELECT mentor_id FROM app.mentor_assignments WHERE student_id = :s"),
+        {"s": student_id},
+    ).scalar_one_or_none()
+    changed = current != mentor_id
+    if changed:
+        try:
+            with conn.begin_nested():
+                conn.execute(
+                    text(
+                        "INSERT INTO app.mentor_assignments (student_id, mentor_id) "
+                        "VALUES (:s, :m) ON CONFLICT (student_id) "
+                        "DO UPDATE SET mentor_id = EXCLUDED.mentor_id"
+                    ),
+                    {"s": student_id, "m": mentor_id},
+                )
+        except IntegrityError as error:
+            raise UnknownStudent(f"no student {student_id}") from error
+    open_case = conn.execute(
+        text(
+            "SELECT id, state, mentor_id FROM app.cases "
+            "WHERE student_id = :s AND state = ANY(:open) FOR UPDATE"
+        ),
+        {"s": student_id, "open": OPEN_VALUES},
+    ).one_or_none()
+    moved = 0
+    if open_case is not None and open_case.mentor_id != mentor_id:
+        conn.execute(
+            text("UPDATE app.cases SET mentor_id = :m WHERE id = :id"),
+            {"m": mentor_id, "id": open_case.id},
+        )
+        state = State(open_case.state)
+        _event(conn, open_case.id, today, "reassigned", state, state, Actor.ADMIN, admin_id)
+        moved = 1
+    if changed or moved:
+        audit.append(
+            conn,
+            actor_kind=Actor.ADMIN.value,
+            actor_id=admin_id,
+            action="mentor_assignment.set",
+            subject_kind="student",
+            subject_ref=f"student-{student_id}",
+            detail={"changed": changed, "cases_moved": moved},
+        )
+    return Assignment(changed, moved)

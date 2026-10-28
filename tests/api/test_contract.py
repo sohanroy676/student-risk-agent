@@ -13,13 +13,16 @@ from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
-from app.api import cases, deps
+from app.api import admin, cases, deps
 from app.core.auth import Principal, Role, StaticKey, TokenVerifier
 from app.main import app
 
 ISS, AUD = "https://idp.example", "risk-api"
 LEAKY = re.compile(r"probab|score|risk", re.IGNORECASE)
-ROUTERS = (cases.router,)  # add each new router here; the guard test below fails if one is missed
+ROUTERS = (
+    cases.router,
+    admin.router,
+)  # add each new router here; the guard test below fails if one is missed
 API_ROUTES = [r for router in ROUTERS for r in router.routes if isinstance(r, APIRoute)]
 
 
@@ -34,7 +37,9 @@ def _concrete(path: str) -> str:
 
 
 def _body(route: APIRoute) -> dict[str, str] | None:
-    return {"action": "dismiss"} if "POST" in route.methods else None
+    if "POST" in route.methods:
+        return {"action": "dismiss"}
+    return {"mentor_id": "M1"} if "PUT" in route.methods else None
 
 
 @pytest.fixture(scope="module")
@@ -114,6 +119,29 @@ def test_faculty_students_and_parents_get_403_everywhere_before_any_data_is_read
         method, _concrete(route.path), json=_body(route), headers=bearer(pems, roles)
     )
     assert reply.status_code == 403 and reply.json() == {"detail": "not allowed"}
+
+
+ADMIN_ROUTES = [r for r in API_ROUTES if r.path.startswith("/api/admin/")]
+
+
+@pytest.mark.parametrize("route", ADMIN_ROUTES, ids=lambda r: f"{sorted(r.methods)}{r.path}")
+@pytest.mark.parametrize("role", ["mentor", "staff"])
+def test_admin_routes_refuse_mentors_and_staff_before_any_data_is_read(
+    client: TestClient, pems: tuple[str, str], route: APIRoute, role: str
+) -> None:
+    method = next(iter(route.methods))
+    reply = client.request(
+        method, _concrete(route.path), json=_body(route), headers=bearer(pems, [role])
+    )
+    assert reply.status_code == 403 and reply.json() == {"detail": "not allowed"}
+
+
+def test_there_are_admin_routes_to_check() -> None:
+    assert {(r.path, tuple(sorted(r.methods))) for r in ADMIN_ROUTES} == {
+        ("/api/admin/mentor-assignments/{student_id}", ("PUT",)),
+        ("/api/admin/nightly/latest", ("GET",)),
+        ("/api/admin/audit/verify", ("GET",)),
+    }
 
 
 def test_an_admin_can_read_but_not_act_on_cases(client: TestClient, pems: tuple[str, str]) -> None:
