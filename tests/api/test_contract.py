@@ -13,7 +13,7 @@ from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
-from app.api import admin, cases, deps, models
+from app.api import admin, cases, concerns, deps, models
 from app.core.auth import Principal, Role, StaticKey, TokenVerifier
 from app.main import app
 
@@ -23,6 +23,7 @@ ROUTERS = (
     cases.router,
     admin.router,
     models.router,
+    concerns.router,
 )  # add each new router here; the guard test below fails if one is missed
 API_ROUTES = [r for router in ROUTERS for r in router.routes if isinstance(r, APIRoute)]
 
@@ -111,11 +112,20 @@ def test_without_a_token_every_api_route_is_a_401(client: TestClient, route: API
     assert reply.status_code == 401 and reply.json() == {"detail": "invalid or missing token"}
 
 
+FACULTY_ROUTES = {("POST", "/api/concerns"), ("GET", "/api/concerns")}  # the only ones open to them
+
+
+def _faculty_may_use(route: APIRoute) -> bool:
+    return any((m, route.path) in FACULTY_ROUTES for m in route.methods)
+
+
 @pytest.mark.parametrize("route", API_ROUTES, ids=lambda r: f"{sorted(r.methods)}{r.path}")
 @pytest.mark.parametrize("roles", [["faculty"], ["student"], ["parent"], []])
 def test_faculty_students_and_parents_get_403_everywhere_before_any_data_is_read(
     client: TestClient, pems: tuple[str, str], route: APIRoute, roles: list[str]
 ) -> None:
+    if roles == ["faculty"] and _faculty_may_use(route):
+        pytest.skip("faculty may raise and read their own concerns")
     method = next(iter(route.methods))
     reply = client.request(
         method, _concrete(route.path), json=_body(route), headers=bearer(pems, roles)
@@ -250,3 +260,77 @@ def test_a_case_id_that_is_not_a_number_is_a_422_not_an_error(
 def test_principal_roles_in_the_contract_match_the_real_roles() -> None:
     assert set(cases.CASE_ACTORS) == {Role.MENTOR, Role.STAFF}
     assert isinstance(Principal("a", Role.MENTOR), Principal)
+
+
+def test_faculty_reach_only_the_concern_routes() -> None:
+    assert {(m, r.path) for r in API_ROUTES if _faculty_may_use(r) for m in r.methods} == (
+        FACULTY_ROUTES
+    )
+
+
+@pytest.mark.parametrize("role", ["mentor", "staff", "admin"])
+def test_only_faculty_can_raise_a_concern(
+    client: TestClient, pems: tuple[str, str], role: str
+) -> None:
+    body = {"student_id": 1, "category": "other"}
+    reply = client.post("/api/concerns", json=body, headers=bearer(pems, [role]))
+    assert reply.status_code == 403 and reply.json() == {"detail": "not allowed"}
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "role"),
+    [
+        ("GET", "/api/concerns", "admin"),
+        ("POST", "/api/concerns/1/acknowledge", "admin"),
+        ("POST", "/api/concerns/1/acknowledge", "faculty"),
+    ],
+)
+def test_admin_cannot_read_concerns_and_faculty_cannot_acknowledge(
+    client: TestClient, pems: tuple[str, str], method: str, path: str, role: str
+) -> None:
+    reply = client.request(method, path, headers=bearer(pems, [role]))
+    assert reply.status_code == 403
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {},
+        {"student_id": 1},
+        {"category": "other"},
+        {"student_id": 0, "category": "other"},
+        {"student_id": 2**31, "category": "other"},
+        {"student_id": "1; DROP TABLE x", "category": "other"},
+        {"student_id": 1, "category": "risk"},
+        {"student_id": 1, "category": "OTHER"},
+        {"student_id": 1, "category": "other", "note": "x" * 501},
+        {"student_id": 1, "category": "other", "note": "bad\x00byte"},
+        {"student_id": 1, "category": "other", "note": ["a"]},
+        {"student_id": 1, "category": "other", "raised_by": "someone-else"},
+        {"student_id": 1, "category": "other", "band": "red"},
+    ],
+)
+def test_a_malformed_concern_is_a_422_before_the_database(
+    client: TestClient, pems: tuple[str, str], body: dict[str, Any]
+) -> None:
+    app.dependency_overrides[deps.get_conn] = lambda: None
+    reply = client.post("/api/concerns", json=body, headers=bearer(pems, ["faculty"]))
+    assert reply.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "query", ["limit=0", "limit=201", "offset=-1", "student_id=0", "student_id=abc", "open_only=x"]
+)
+def test_bad_filters_on_the_concern_list_are_a_422(
+    client: TestClient, pems: tuple[str, str], query: str
+) -> None:
+    app.dependency_overrides[deps.get_conn] = lambda: None
+    reply = client.get(f"/api/concerns?{query}", headers=bearer(pems, ["mentor"]))
+    assert reply.status_code == 422
+
+
+def test_the_concern_request_takes_no_actor_and_the_response_no_case_or_band() -> None:
+    schemas = app.openapi()["components"]["schemas"]
+    assert set(schemas["ConcernRequest"]["properties"]) == {"student_id", "category", "note"}
+    assert schemas["ConcernRequest"]["additionalProperties"] is False
+    assert not {"band", "state", "case_id"} & set(schemas["ConcernOut"]["properties"])
