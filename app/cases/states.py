@@ -41,6 +41,7 @@ class Actor(StrEnum):
     AGENT = "agent"
     MENTOR = "mentor"
     STAFF = "staff"  # HoD or counsellor
+    ADMIN = "admin"  # moves cases between mentors; decides nothing about the student
 
 
 OPEN_STATES = frozenset(

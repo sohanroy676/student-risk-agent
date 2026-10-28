@@ -53,11 +53,12 @@
 - `chore/faster-ci` (includes `fix/ci-timeout`): CI split into parallel jobs (checks, three Postgres shards, scale, secrets), `postgres` and `slow` markers, `tests/test_ci_layout.py`. Local suite 727 passed, 160 skipped
 - `chore/faster-ci` merged to `main` (43f8d42), CI green in 7.6 min wall-clock (was 19-20)
 - `chore/faster-ci-2`: 60-student cohort in the database tests (they dominated the slow shard) and the 5,000-student test moved to its own `scale.yml` workflow. Local suite 727 passed, 160 skipped; the database tests are first run by CI
-- Order after this: admin API, then the `v0.4.0` tag; Moodle connector moved out of v0.4
+- `chore/faster-ci-2` merged to `main` (60fac52), CI and Scale green (CI about 4 min)
+- `feature/admin-api`: `app/api/admin.py` (assign mentor and move the open case, latest nightly run, audit verify), `assign_mentor` in `app/cases/store.py`, `Actor.ADMIN`, `tests/api/test_admin_postgres.py`. Local suite 752 passed, 42 skipped (not postgres); branch CI green (run 40691561309). Next: merge, `v0.4.0` tag
 
 ## Next
 
-- Continue v0.4: core APIs next, then the admin API (see activeContext)
+- Merge the admin API, tag `v0.4.0` (see activeContext)
 
 ## Unverified (added)
 

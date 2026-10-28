@@ -3,11 +3,12 @@ from fastapi.responses import JSONResponse
 from redis import Redis
 from sqlalchemy import create_engine, text
 
-from app.api import cases
+from app.api import admin, cases
 from app.core.settings import Settings, get_settings
 
 app = FastAPI(title="Student Risk Agent")
 app.include_router(cases.router)
+app.include_router(admin.router)
 
 
 def _db_ok(settings: Settings) -> bool:
