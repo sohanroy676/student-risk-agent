@@ -34,9 +34,14 @@
   - `feature/fairness-report` (stacked on `feature/shap-reasons`): `app/ml/fairness.py` (Fairlearn `MetricFrame`; `flag_top`, `group_table`, `recall_gaps`, `fairness_report`; `python -m app.ml.fairness --oulad DIR`), `fairlearn==0.15.0` pinned, mypy override for it. Attributes are evaluation only: the module takes scores and attributes, never a model. Real OULAD week 4, top 20% flagged: recall gap by attribute gender 0.005, disability 0.005, region 0.105, imd_band 0.106, age_band 0.138, highest_education 0.155 (limit 0.10)
   - `feature/model-registry-gate` (stacked on `feature/fairness-report`): `app/ml/gate.py` (pure `check`: blocks `auc_lower`, `ece_high`, `gap_high:<attr>`; named `SignOff` must list the blocks it covers; missing metrics and unassessed attributes are never overridable), `app/ml/registry.py` (local MLflow sqlite store, `risk-lgbm-week<N>` models, `production` alias moved only if the gate passes, metrics/gate result/sign-off kept as version tags), `app/ml/card.py` (Markdown model card), `app/ml/release.py` (`python -m app.ml.release --oulad DIR --store mlruns [--sign-off-name --sign-off-reason --cover CODE]`), `fit_week` in `calibrate.py`, `mlflow==3.17.2` pinned, `mlruns/` git-ignored. Real OULAD: blocked on 4 recall gaps without sign-off, promoted with a sign-off covering them. Full suite 390 passed; the registry tests take ~110 s (MLflow sqlite setup)
 
+## v0.4 (in progress, one branch per item, nothing pushed)
+
+- `feature/csv-connector-dq`: `app/ingest/` `schema.py` (11 table specs), `clean.py` (raw text to typed core tables, reject/warn rules, silent drop of exact duplicate rows), `quality.py` (ok/warn/fail report, no student values), `db.py` (idempotent upserts into raw then core; a `fail` night stores raw and the report but not core), `csv_connector.py` (`python -m app.ingest.csv_connector DIR [--dry-run]`); migration 0002 (raw.* tables, `raw.dq_reports`, unique index on `core.lms_events`). Local suite 443 passed; the 4 Postgres load tests in `tests/ingest/test_postgres_load.py` skip locally and are first run by CI
+- Order after this: case engine, nightly pipeline, audit chain, core APIs, JWT auth + RBAC/RLS; Moodle connector deferred
+
 ## Next
 
-- v0.4 Backend and integration (see activeContext)
+- Continue v0.4 (see activeContext)
 
 ## Unverified (added)
 
@@ -47,3 +52,4 @@
 - `docker compose up`
 - `cd web && npm run build`
 - `app/features/db.py` and `tests/features/test_db.py` (need Postgres; first run is CI)
+- `app/ingest/db.py` and `tests/ingest/test_postgres_load.py` (need Postgres; first run is CI)

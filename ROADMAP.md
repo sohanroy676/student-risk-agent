@@ -1,12 +1,10 @@
 # Roadmap
 
 ## Now
-- v0.1 Setup and synthetic data: code complete on stacked branches, awaiting review and a Docker verification (see activeContext)
-- v0.2 Data and baseline model: OULAD and UCI loaded, as_of feature builder with leakage test, rule score, logistic regression evaluated by week
+- v0.4 Backend and integration, in progress: CSV connector and data-quality report done on `feature/csv-connector-dq` (awaiting review)
 
 ## Next
-- v0.3 Model and explanations: code complete on stacked branches, awaiting review (manual check of the model card and example reasons)
-- v0.4 Backend and integration: CSV and Moodle connectors, nightly Celery pipeline, case engine, core APIs, auth and RBAC, audit log
+- v0.4 remaining: case engine, nightly Celery pipeline, core APIs, audit log, JWT/OIDC auth with RBAC and row-level security, Moodle connector (deferred)
 - v0.5 Dashboard: caseload, case detail, faculty flag, admin screens, mentor actions with template drafts
 - v0.6 Agent and follow-up: tools, prompt, validator, outbox, 7-day follow-up and escalation, 50-case eval set
 - v1.0 Evaluation and release: full metrics, fairness analysis, security review, usability sessions, docs, test at our own college
