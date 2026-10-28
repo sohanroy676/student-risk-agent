@@ -246,6 +246,48 @@ def test_timer_changes_are_audited_as_system_actions(conn: Connection) -> None:
     )
 
 
+def _approval(conn: Connection, case: int) -> tuple[object, object]:
+    row = conn.execute(
+        text("SELECT approved_by, approved_on FROM app.cases WHERE id = :i"), {"i": case}
+    ).one()
+    return row.approved_by, row.approved_on
+
+
+def test_approving_records_who_and_when_and_nothing_else_does(conn: Connection) -> None:
+    case = _open_case(conn)
+    assert _approval(conn, case) == (None, None)
+    advance(conn, case, Action.SAVE_PLAN, Actor.AGENT, None, DAY, CFG)
+    assert _approval(conn, case) == (None, None)  # a draft is not an approval
+    advance(conn, case, Action.APPROVE, Actor.MENTOR, "m1", DAY + timedelta(days=1), CFG)
+    assert _approval(conn, case) == ("m1", DAY + timedelta(days=1))
+    run_timers(conn, DAY + timedelta(days=9), CFG)  # moves to review; approval stays
+    advance(conn, case, Action.ESCALATE, Actor.MENTOR, "m1", DAY + timedelta(days=9), CFG)
+    assert _approval(conn, case) == ("m1", DAY + timedelta(days=1))
+
+
+def test_a_refused_approval_records_nothing(conn: Connection) -> None:
+    case = _open_case(conn)
+    advance(conn, case, Action.SAVE_PLAN, Actor.AGENT, None, DAY, CFG)
+    with pytest.raises(NotAllowed):
+        advance(conn, case, Action.APPROVE, Actor.STAFF, "hod", DAY, CFG)
+    with pytest.raises(NotAllowed):
+        advance(conn, case, Action.APPROVE, Actor.MENTOR, "m2", DAY, CFG)  # not their mentee
+    assert _approval(conn, case) == (None, None)
+
+
+def test_the_database_refuses_a_half_recorded_approval(conn: Connection) -> None:
+    case = _open_case(conn)
+    with pytest.raises(IntegrityError):
+        conn.execute(text("UPDATE app.cases SET approved_by = 'm1' WHERE id = :i"), {"i": case})
+
+
+def test_migration_0008_downgrades_and_upgrades(conn: Connection) -> None:
+    conn.rollback()
+    conn.close()
+    _alembic("downgrade", "0007")
+    _alembic("upgrade", "head")
+
+
 def test_migration_0003_downgrades_and_upgrades(conn: Connection) -> None:
     conn.rollback()
     conn.close()

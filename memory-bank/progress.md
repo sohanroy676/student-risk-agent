@@ -47,7 +47,9 @@
 - `feature/mentor-assignment-import` merged to `main` (920a9e3), CI green (680 passed, 42 skipped)
 - `feature/auth-rbac`: `app/core/auth.py` (token verification, roles), `app/api/deps.py`, `app/core/db.py`, migration 0007 (RLS, `app_api_role`, `gov.audit_head()`), PyJWT and cryptography pinned; tests in `tests/core/test_auth.py`, `tests/api/test_deps.py`, `tests/db/test_rls.py`. Branch CI green: 773 passed, 42 skipped
 - `chore/ci-timings`: `pytest --durations=15` in CI and the 5,000-night time printed (106 s measured)
-- Order after this: core APIs, admin API, then the `v0.4.0` tag; Moodle connector moved out of v0.4
+- `feature/auth-rbac` and `chore/ci-timings` merged to `main` (4974f79), CI green (773 passed, 42 skipped; 5,000-student night 159 s on that run, 106 s earlier)
+- `feature/core-apis`: `app/api/cases.py` (caseload, case detail, actions), `WrongActor`/`WrongState`, migration 0008 (`approved_by`/`approved_on`), contract and Postgres API tests incl. a p95 test. Local suite 723 passed, 160 skipped; its Postgres tests are first run by CI on `main` (merged before a branch CI run, by the user's choice)
+- Order after this: admin API, CI speedup, then the `v0.4.0` tag; Moodle connector moved out of v0.4
 
 ## Next
 

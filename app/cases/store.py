@@ -17,7 +17,7 @@ from sqlalchemy import Connection, text
 from app.cases.bands import Band
 from app.cases.config import CaseConfig
 from app.cases.planner import History, NightPlan, Score, plan_night
-from app.cases.states import OPEN_STATES, Action, Actor, NotAllowed, State, step
+from app.cases.states import OPEN_STATES, Action, Actor, State, WrongActor, step
 from app.core import audit_store as audit
 
 # How far either side of "a week ago" a stored score may be and still count as that week's.
@@ -213,7 +213,8 @@ def advance(
     today: date,
     cfg: CaseConfig | None = None,
 ) -> State:
-    """Apply one action to a case. Raises `NotAllowed`, or `LookupError` for an unknown case."""
+    """Apply one action to a case. Raises `WrongActor` or `WrongState` (both `NotAllowed`), or
+    `LookupError` for an unknown case. Approving records who approved and when."""
     cfg = cfg or CaseConfig()
     row = conn.execute(
         text("SELECT state, cycle, mentor_id FROM app.cases WHERE id = :id FOR UPDATE"),
@@ -222,13 +223,16 @@ def advance(
     if row is None:
         raise LookupError(f"no case {case_id}")
     if actor is Actor.MENTOR and actor_id != row.mentor_id:
-        raise NotAllowed("a mentor can act only on their own mentees' cases")
+        raise WrongActor("a mentor can act only on their own mentees' cases")
     old = State(row.state)
     moved = step(old, row.cycle, action, actor, today, cfg)
     conn.execute(
         text(
             "UPDATE app.cases SET state = :state, cycle = :cycle, entered_on = :today, "
-            "due_on = :due, closed_on = :closed, overdue_noted = false WHERE id = :id"
+            "due_on = :due, closed_on = :closed, overdue_noted = false, "
+            "approved_by = CASE WHEN :approving THEN :actor_id ELSE approved_by END, "
+            "approved_on = CASE WHEN :approving THEN CAST(:today AS date) ELSE approved_on END "
+            "WHERE id = :id"
         ),
         {
             "state": moved.state.value,
@@ -236,6 +240,8 @@ def advance(
             "today": today,
             "due": moved.due_on,
             "closed": today if moved.closed else None,
+            "approving": action is Action.APPROVE,
+            "actor_id": actor_id,
             "id": case_id,
         },
     )
