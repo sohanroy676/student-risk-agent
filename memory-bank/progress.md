@@ -58,6 +58,8 @@
 
 - `feature/fairness-red-band`: fairness audit and gate flag the red band (see activeContext). Local suite 765 passed, 42 skipped
 
+- `feature/models-api`: `app/api/models.py` (releases, card, promote with scoped sign-off), `Registry` release methods, tests in `tests/api/test_models.py` and `tests/ml/test_registry.py`. Local suite 831 passed, 42 skipped; branch CI not yet run
+
 ## Next
 
 - Merge the admin API, tag `v0.4.0` (see activeContext)
