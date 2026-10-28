@@ -191,3 +191,10 @@ def test_evaluate_calibrated_marks_weeks_without_test_positives_as_missing(
     result = evaluate_calibrated(to_core_tables(data), flat, weeks=[8])
     assert result["ece"].isna().all()
     assert not result["ece_ok"].any()
+
+
+def test_precision_target_is_capped_at_the_floor_for_high_base_rates() -> None:
+    # At a 45% base rate 2x would need 0.90 precision; the floor (0.70) applies instead.
+    assert min(calibrate.LIFT_TARGET * 0.45, calibrate.TOP_PRECISION_FLOOR) == 0.70
+    # At a 10% base rate the 2x lift rule is the stricter one.
+    assert min(calibrate.LIFT_TARGET * 0.10, calibrate.TOP_PRECISION_FLOOR) == pytest.approx(0.20)

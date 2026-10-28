@@ -23,7 +23,7 @@ v0.2 "Data and baseline model" code is complete and merged to `main`: loaders, `
 - Dockerfile `libgomp1` (needed by LightGBM) is unverified: no Docker locally.
 
 ## v0.3 status (2026-10-28)
-- `feature/calibrated-lgbm` done, not pushed. ECE target met every week. The 2x top-10% lift target is structurally out of reach on OULAD: test at-risk rate is 42-48%, so max lift is about 2.1-2.4 (needs ~96% precision at week 1); best result 1.99 at week 8. Decide whether to restate it (e.g. lift vs achievable max, or top-5%) before the promotion gate uses it.
+- `feature/calibrated-lgbm` done, not pushed. ECE target met every week. Lift target restated by the user's go-ahead (2026-10-28): top-10% precision >= min(2x base rate, 0.70); the 0.70 cap applies on OULAD (base rate 42-48%, plain 2x is unreachable, best lift 1.99) and all five weeks pass it (0.72-0.83). Set after seeing results; the college's ~10% base rate keeps the stricter 2x rule.
 - Calibrated model is fitted on 2013B only (2013J is the validation set), costing 0.01-0.03 AUC versus plain LightGBM. Gate on week-4 AUC should compare calibrated candidates with each other.
 - Remaining v0.3 branches: `feature/shap-reasons`, `feature/fairness-report`, `feature/model-registry-gate`.
 
