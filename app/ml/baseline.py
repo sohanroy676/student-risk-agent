@@ -88,6 +88,8 @@ def make_lgbm() -> LGBMClassifier:
 
 # Model name -> factory; each name becomes an `auc_<name>` column in the weekly table.
 MODELS: dict[str, Callable[[], Any]] = {"logreg": make_model, "lgbm": make_lgbm}
+# The model that gets calibrated, explained and promoted; logreg stays as the comparison.
+PRODUCTION = "lgbm"
 
 
 def _auc(y: pd.Series, score: pd.Series | pd.api.extensions.ExtensionArray) -> float:

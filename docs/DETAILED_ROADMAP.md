@@ -44,7 +44,7 @@ Each version lists what is done, what to test (A = automatic, M = manual), and t
 
 \*\*Test:\*\*
 
-\- A: calibration error (ECE) at or below 0.05; top-10% precision at least 2x base rate.
+\- A: calibration error (ECE) at or below 0.05; top-10% precision at least 2x base rate, or at least 0.70 where the base rate is so high that 2x is out of reach (OULAD).
 
 \- A: every rendered reason matches the underlying feature values (100%).
 
