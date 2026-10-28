@@ -47,9 +47,8 @@ def append(
 ) -> StoredEntry:
     """Add one entry to the chain. Raises `ValueError` for a malformed entry or banned detail."""
     conn.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": LOCK_KEY})
-    last = conn.execute(
-        text("SELECT seq, hash FROM gov.audit_log ORDER BY seq DESC LIMIT 1")
-    ).one_or_none()
+    # Through a function, so a writer that may not read the log can still find the chain's end.
+    last = conn.execute(text("SELECT seq, hash FROM gov.audit_head()")).one_or_none()
     seq, prev = (1, GENESIS) if last is None else (int(last.seq) + 1, str(last.hash))
     entry = AuditEntry(
         seq=seq,
