@@ -56,6 +56,8 @@
 - `chore/faster-ci-2` merged to `main` (60fac52), CI and Scale green (CI about 4 min)
 - `feature/admin-api`: `app/api/admin.py` (assign mentor and move the open case, latest nightly run, audit verify), `assign_mentor` in `app/cases/store.py`, `Actor.ADMIN`, `tests/api/test_admin_postgres.py`. Local suite 752 passed, 42 skipped (not postgres); branch CI green (run 40691561309). Next: merge, `v0.4.0` tag
 
+- `feature/fairness-red-band`: fairness audit and gate flag the red band (see activeContext). Local suite 765 passed, 42 skipped
+
 ## Next
 
 - Merge the admin API, tag `v0.4.0` (see activeContext)
