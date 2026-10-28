@@ -51,19 +51,21 @@ def _class_dates(course_id: int) -> list[date]:
     ]
 
 
-def generate(seed: int = 42) -> SyntheticData:
+def generate(seed: int = 42, n_students: int = N_STUDENTS) -> SyntheticData:
+    if n_students < 1:
+        raise ValueError("n_students must be at least 1")
     rng = np.random.default_rng(seed)
-    student_ids = list(range(1, N_STUDENTS + 1))
+    student_ids = list(range(1, n_students + 1))
     struggling = frozenset(
         int(i)
-        for i in rng.choice(student_ids, size=round(N_STUDENTS * STRUGGLING_SHARE), replace=False)
+        for i in rng.choice(student_ids, size=round(n_students * STRUGGLING_SHARE), replace=False)
     )
     is_struggling = np.array([s in struggling for s in student_ids])
 
     # Per-student latent behaviour: attendance probability and mark level (fraction of max).
-    attend_p = np.where(is_struggling, rng.beta(5, 5, N_STUDENTS), rng.beta(17, 3, N_STUDENTS))
+    attend_p = np.where(is_struggling, rng.beta(5, 5, n_students), rng.beta(17, 3, n_students))
     mark_level = np.where(
-        is_struggling, rng.normal(0.38, 0.08, N_STUDENTS), rng.normal(0.72, 0.08, N_STUDENTS)
+        is_struggling, rng.normal(0.38, 0.08, n_students), rng.normal(0.72, 0.08, n_students)
     )
     submit_p = np.where(is_struggling, 0.55, 0.96)
     late_fee_p = np.where(is_struggling, 0.6, 0.05)
@@ -96,7 +98,7 @@ def generate(seed: int = 42) -> SyntheticData:
         probs = np.where(
             is_struggling[:, None], attend_p[:, None] * decay[None, :], attend_p[:, None]
         )
-        present = rng.random((N_STUDENTS, len(dates))) < probs
+        present = rng.random((n_students, len(dates))) < probs
         for si, sid in enumerate(student_ids):
             attendance.extend((sid, c, d, bool(p)) for d, p in zip(dates, present[si], strict=True))
     tables["attendance"] = Table(("student_id", "course_id", "class_date", "present"), attendance)
@@ -109,9 +111,9 @@ def generate(seed: int = 42) -> SyntheticData:
             aid += 1
             due = TERM_START + timedelta(weeks=week - 1, days=4)
             assessments.append((aid, c, f"Assessment {k}", due, 100))
-            submitted = rng.random(N_STUDENTS) < submit_p
-            late = rng.random(N_STUDENTS) < np.where(is_struggling, 0.4, 0.05)
-            late_days = rng.integers(1, 3, N_STUDENTS)
+            submitted = rng.random(n_students) < submit_p
+            late = rng.random(n_students) < np.where(is_struggling, 0.4, 0.05)
+            late_days = rng.integers(1, 3, n_students)
             scores = np.clip(rng.normal(mark_level, 0.10) * 100, 0, 100).round(1)
             for si, sid in enumerate(student_ids):
                 if submitted[si]:
@@ -130,9 +132,9 @@ def generate(seed: int = 42) -> SyntheticData:
     fid = 0
     for k in range(N_FEE_INSTALMENTS):
         due = TERM_START + timedelta(days=7 + 49 * k)
-        is_late = rng.random(N_STUDENTS) < late_fee_p
-        early = rng.integers(0, 6, N_STUDENTS)
-        delay = rng.integers(10, 41, N_STUDENTS)
+        is_late = rng.random(n_students) < late_fee_p
+        early = rng.integers(0, 6, n_students)
+        delay = rng.integers(10, 41, n_students)
         for si, sid in enumerate(student_ids):
             fid += 1
             paid = (
@@ -160,8 +162,8 @@ def generate(seed: int = 42) -> SyntheticData:
                 lms.append((sid, int(c), at + timedelta(hours=int(h)), LMS_EVENT_TYPES[int(kd)]))
     tables["lms_events"] = Table(("student_id", "course_id", "occurred_at", "event_type"), lms)
 
-    genders = rng.choice(["F", "M", "O"], N_STUDENTS, p=[0.48, 0.5, 0.02])
-    cats = rng.choice(["general", "obc", "sc", "st"], N_STUDENTS, p=[0.5, 0.3, 0.14, 0.06])
+    genders = rng.choice(["F", "M", "O"], n_students, p=[0.48, 0.5, 0.02])
+    cats = rng.choice(["general", "obc", "sc", "st"], n_students, p=[0.5, 0.3, 0.14, 0.06])
     tables["student_attributes"] = Table(
         ("student_id", "gender", "category"),
         [(sid, str(genders[i]), str(cats[i])) for i, sid in enumerate(student_ids)],

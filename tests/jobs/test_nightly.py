@@ -1,5 +1,6 @@
 """Pure parts of the nightly run (no database): week choice, scoring, reasons."""
 
+import time
 from dataclasses import replace
 from datetime import date, timedelta
 from typing import Any
@@ -19,6 +20,7 @@ from app.jobs.nightly import (
 from app.ml.calibrate import CalibratedModel
 from app.ml.registry import NoProductionModel
 from data.synthetic import generator
+from data.synthetic.frames import to_core_tables
 
 AS_OF = generator.TERM_START + timedelta(weeks=8, days=2)
 IDS = list(range(1, generator.N_STUDENTS + 1))
@@ -154,3 +156,13 @@ def test_the_task_refuses_to_run_without_database_and_csv_settings(
     monkeypatch.delenv("CSV_DIR", raising=False)
     with pytest.raises(RuntimeError, match="CSV_DIR"):
         nightly.run_nightly()
+
+
+def test_scoring_five_thousand_students_takes_seconds_not_minutes(model: CalibratedModel) -> None:
+    """The snapshot and scoring leg of the 30-minute budget; the database legs run in CI."""
+    big = to_core_tables(generator.generate(seed=1, n_students=5000))
+    started = time.perf_counter()
+    _, scores = score_students(big, list(range(1, 5001)), AS_OF, model)
+    elapsed = time.perf_counter() - started
+    assert len(scores) == 5000
+    assert elapsed < 120, f"snapshot + scoring took {elapsed:.0f} s"
