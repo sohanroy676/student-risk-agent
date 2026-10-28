@@ -110,6 +110,17 @@ def fit_calibrated(
     )
 
 
+def fit_week(
+    tables: CoreTables, cohort: pd.DataFrame, week: int
+) -> tuple[CalibratedModel, pd.DataFrame, pd.Series]:
+    """Production model for one checkpoint week, with the test rows' features and labels."""
+    features, y, split = weekly_matrix(tables, cohort, week)
+    train = split == "train"
+    starts = cohort.loc[features.index[train], "term_start"]
+    fitted = fit_calibrated(features[train], y[train], starts)
+    return fitted, features[~train], y[~train]
+
+
 def evaluate_calibrated(
     tables: CoreTables, cohort: pd.DataFrame, weeks: Sequence[int] = WEEKS
 ) -> pd.DataFrame:

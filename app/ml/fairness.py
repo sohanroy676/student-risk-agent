@@ -23,8 +23,7 @@ from fairlearn.metrics import (
 from sklearn.metrics import precision_score
 
 from app.ingest.oulad import load_oulad
-from app.ml.baseline import PRODUCTION, weekly_matrix
-from app.ml.calibrate import fit_calibrated
+from app.ml.calibrate import fit_week
 from app.ml.report import oulad_cohort
 
 PROTECTED = ("gender", "region", "highest_education", "imd_band", "age_band", "disability")
@@ -168,13 +167,10 @@ def main() -> None:
 
     data = load_oulad(args.oulad)
     cohort = oulad_cohort(data, args.test_year)
-    features, y, split = weekly_matrix(data.to_core_tables(), cohort, args.week)
-    train, test = split == "train", split == "test"
-    starts = cohort.loc[features.index[train], "term_start"]
-    fitted = fit_calibrated(features[train], y[train], starts, PRODUCTION)
-    score = pd.Series(fitted.raw_score(features[test]), index=features.index[test])
+    fitted, test_features, y_test = fit_week(data.to_core_tables(), cohort, args.week)
+    score = pd.Series(fitted.raw_score(test_features), index=test_features.index)
     attributes = data.attributes.set_index("student_id").loc[score.index, list(PROTECTED)]
-    table, gaps = fairness_report(attributes, y[test], score, args.flag_fraction)
+    table, gaps = fairness_report(attributes, y_test, score, args.flag_fraction)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     table.to_csv(args.out.with_name(args.out.name + "_groups.csv"), index=False)
