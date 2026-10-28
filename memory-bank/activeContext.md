@@ -47,6 +47,11 @@ v0.3 "Model and explanations" is merged to `main` (PR #3) and tagged `v0.3.0`; C
 - Worker refuses to start without `REDIS_URL`; settings added: `APP_TIMEZONE`, `CSV_DIR`, `MODEL_STORE`. `worker` and `beat` services are in `docker-compose.yml` (not run: no Docker).
 - Generator takes `n_students` (default output unchanged). The 5,000-student timing test (budget 30 min, second night so it is a normal re-ingest) runs only with Postgres; its measured time is in the CI log of the branch run.
 
+## v0.4 audit chain decisions (2026-10-28)
+- `gov.audit_log` (migration 0005): append-only (triggers refuse UPDATE, DELETE, TRUNCATE; a superuser can drop them, the chain detects that), `seq` numbered by the writer (not a sequence, so rollbacks leave no gap), `prev_hash` and `hash` unique so the database refuses a fork. Grants (INSERT + SELECT only) wait for the RBAC branch.
+- Pure part `app/core/audit.py` (entry, canonical JSON, SHA-256 chain, `verify_entries`, `Anchor`); database part `app/core/audit_store.py` (`append` under an advisory lock in the caller's transaction, `verify`, `current_anchor`, CLI `python -m app.core.audit_store verify [--anchor SEQ:HASH] | anchor`). The lock is held to the end of the writing transaction; keep those short.
+- `detail` refuses keys containing name, phone, mobile, email, roll, address, probability, score, band, risk, and any float. Audited so far: every case change (via `_event`, subject `case-<id>`) and the nightly run (`nightly.run` counts, `nightly.halted` on a data-quality fail). API writes get audited with the core APIs. Reads are not audited. An anchor (`seq:hash`) kept outside the database is the only defence against cut-off newest rows.
+
 ## Next step
-Audit chain, core APIs, JWT auth + RBAC/RLS; Moodle connector deferred; tag `v0.4.0` last, only when all are done and CI is green on `main`.
+Mentor-assignment CSV import, then core APIs, JWT auth + RBAC/RLS (incl. audit grants, OIDC subject as mentor id); Moodle connector deferred (decide whether `v0.4.0` waits for it); tag `v0.4.0` last, only when all are done and CI is green on `main`.
 Open: `app.mentor_assignments` is still empty (plan: CSV import in the connector; admin API after auth); re-run the fairness audit and gate on the red band (own branch); the manual v0.3 checks (read a model card, reasons for 10 students). Demographics must not be added as features.

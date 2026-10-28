@@ -40,7 +40,9 @@
 - `feature/csv-connector-dq` merged to `main` (a067acf); that merge broke CI (unique key on `core.lms_events` vs the generator's duplicate events in `tests/features/test_db.py`), fixed by `fix/lms-duplicate-events`, merged as 3369c5d, CI green
 - `feature/case-engine` merged to `main` (7cef506), CI green incl. the Postgres tests: `app/cases/` `config.py` (all tunables, validated), `bands.py` (hysteresis), `states.py` (pure state machine + who may act + timers), `planner.py` (pure nightly plan: cases to open, per-mentor cap, deferred, unassigned), `store.py` (Postgres: `run_night`, `advance`, `run_timers`); migration 0003 (`app.mentor_assignments`, `risk_scores`, `cases`, `case_events`, one-open-case partial unique index). 62 pure tests; `tests/cases/test_store.py` (13 Postgres tests) skips locally but passed in CI (it caught `dict(result)` treating a SQLAlchemy result as a mapping). `.gitleaksignore` holds 3 narrow fingerprints for false positives that a full-history scan (manual `gh workflow run ci.yml --ref <branch>`) hits; CI otherwise runs only on pushes to `main`
 - `feature/nightly-pipeline`: `Registry.load_production`, Celery app and beat schedule (`app/jobs/__init__.py`), `app/jobs/nightly.py` (`run_pipeline`, `run_nightly`), migration 0004 (`app.case_reasons`), generator `n_students`, 5,000-student timing test (Postgres, CI only). Local suite 548 passed, 69 skipped
-- Order after this: audit chain, core APIs, JWT auth + RBAC/RLS; Moodle connector deferred
+- `feature/nightly-pipeline` merged to `main` (93b3dcb), CI green on the branch and on `main`
+- `feature/audit-chain`: migration 0005 (`gov.audit_log`), `app/core/audit.py` (pure chain, anchor), `app/core/audit_store.py` (append, verify, anchor, CLI), audit hooks in `app/cases/store.py` and `app/jobs/nightly.py`. Local suite 607 passed, 96 skipped; the Postgres tests (table, writer, tamper, concurrency, hooks) are first run by CI
+- Order after this: mentor-assignment import, core APIs, JWT auth + RBAC/RLS; Moodle connector deferred
 
 ## Next
 

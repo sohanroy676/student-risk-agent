@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 from sqlalchemy import Engine, create_engine, text
 
+from app.core.audit_store import verify
 from app.jobs.nightly import DataQualityFailed, run_pipeline
 from app.ml.calibrate import CalibratedModel
 from app.ml.gate import Metrics
@@ -143,6 +144,30 @@ def test_a_failed_data_quality_check_stops_before_scoring(
     assert _count(engine, "SELECT count(*) FROM raw.dq_reports") == 1  # the report is kept
     assert _count(engine, "SELECT count(*) FROM core.students") == 0
     assert _count(engine, "SELECT count(*) FROM app.risk_scores") == 0
+    halted = "SELECT count(*) FROM gov.audit_log WHERE action = 'nightly.halted'"
+    assert _count(engine, halted) == 1
+    assert _count(engine, "SELECT count(*) FROM gov.audit_log WHERE action = 'nightly.run'") == 0
+
+
+def test_the_night_is_audited_and_the_chain_verifies(
+    engine: Engine, csv_dir: Path, registry: Registry
+) -> None:
+    _night(engine, csv_dir, registry)
+    _assign_mentors(engine)
+    summary = _night(engine, csv_dir, registry)
+    with engine.connect() as conn:
+        result = verify(conn)
+    assert result.ok
+    opened = "SELECT count(*) FROM gov.audit_log WHERE action = 'case.opened'"
+    assert _count(engine, opened) == summary.opened
+    runs = "SELECT count(*) FROM gov.audit_log WHERE action = 'nightly.run'"
+    assert _count(engine, runs) == 2  # a re-run is itself something that happened
+    with engine.connect() as conn:
+        detail = conn.execute(
+            text("SELECT detail FROM gov.audit_log WHERE action = 'nightly.run' ORDER BY seq DESC")
+        ).scalar()
+    assert detail["cases_opened"] == summary.opened
+    assert not any(banned in key for key in detail for banned in ("score", "band", "probab"))
 
 
 def test_a_night_outside_any_term_scores_nothing_but_still_succeeds(

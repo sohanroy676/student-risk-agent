@@ -24,6 +24,7 @@ from app.cases.config import CaseConfig
 from app.cases.planner import Score
 from app.cases.states import OPEN_STATES
 from app.cases.store import run_night, run_timers
+from app.core import audit_store as audit
 from app.core.settings import get_settings
 from app.features.db import load_core_tables
 from app.features.snapshot import FEATURE_NAMES, build_snapshot
@@ -177,6 +178,35 @@ def _term_students(conn: Connection, term_id: int) -> list[int]:
     return [int(s) for s in found.scalars()]
 
 
+def _audit_detail(summary: NightSummary) -> dict[str, object]:
+    """Counts and labels only; the audit log refuses keys such as `score`, so names differ."""
+    return {
+        "as_of": summary.as_of,
+        "data_quality": summary.data_quality,
+        "skipped": summary.skipped,
+        "model_week": summary.model_week,
+        "students_evaluated": summary.scored,
+        "cases_opened": summary.opened,
+        "deferred": summary.deferred,
+        "unassigned": summary.unassigned,
+        "reasons_written": summary.reasons,
+        "moved_to_review": summary.moved_to_review,
+        "newly_overdue": summary.newly_overdue,
+    }
+
+
+def _audit(conn: Connection, as_of: date, action: str, detail: dict[str, object]) -> None:
+    audit.append(
+        conn,
+        actor_kind="system",
+        actor_id=None,
+        action=action,
+        subject_kind="pipeline",
+        subject_ref=as_of.isoformat(),
+        detail=detail,
+    )
+
+
 def run_pipeline(
     engine: Engine,
     csv_dir: Path,
@@ -187,6 +217,8 @@ def run_pipeline(
     with engine.begin() as conn:
         _, report = ingest(conn, read_csv_dir(csv_dir), as_of, source=f"csv:{csv_dir.name}")
     if report.status == "fail":
+        with engine.begin() as conn:
+            _audit(conn, as_of, "nightly.halted", {"cause": "data_quality_failed"})
         raise DataQualityFailed(f"data quality failed on {as_of}; see raw.dq_reports")
 
     with engine.connect() as conn:
@@ -212,20 +244,20 @@ def run_pipeline(
             _store_reasons(conn, rows, list(by_student.values()), as_of)
             reasons = len(rows)
         timers = run_timers(conn, as_of, cfg)
-
-    summary = NightSummary(
-        as_of=as_of.isoformat(),
-        data_quality=report.status,
-        skipped=skipped,
-        model_week=week,
-        scored=len(scored),
-        opened=len(plan.opened),
-        deferred=len(plan.deferred),
-        unassigned=len(plan.unassigned),
-        reasons=reasons,
-        moved_to_review=len(timers.moved_to_review),
-        newly_overdue=len(timers.newly_overdue),
-    )
+        summary = NightSummary(
+            as_of=as_of.isoformat(),
+            data_quality=report.status,
+            skipped=skipped,
+            model_week=week,
+            scored=len(scored),
+            opened=len(plan.opened),
+            deferred=len(plan.deferred),
+            unassigned=len(plan.unassigned),
+            reasons=reasons,
+            moved_to_review=len(timers.moved_to_review),
+            newly_overdue=len(timers.newly_overdue),
+        )
+        _audit(conn, as_of, "nightly.run", _audit_detail(summary))
     log.info("nightly run finished: %s", asdict(summary))
     return summary
 
