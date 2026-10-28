@@ -15,6 +15,7 @@ from app.cases.config import CaseConfig
 from app.cases.planner import Score
 from app.cases.states import Action, Actor, NotAllowed, State
 from app.cases.store import advance, run_night, run_timers
+from app.core.audit_store import verify as audit_verify
 
 TEST_DB = os.environ.get("TEST_DATABASE_URL")
 pytestmark = pytest.mark.skipif(TEST_DB is None, reason="TEST_DATABASE_URL not set")
@@ -197,6 +198,52 @@ def test_closed_case_blocks_reopening_for_the_cooldown(conn: Connection) -> None
     latest = int(_scalar(conn, "SELECT max(id) FROM app.cases"))
     advance(conn, latest, Action.DISMISS, Actor.STAFF, "hod", DAY + timedelta(days=11), CFG)
     assert run_night(conn, [Score(1, 0.6)], DAY + timedelta(days=39), CFG).opened != []
+
+
+def _audit_rows(conn: Connection) -> list[Any]:
+    return list(
+        conn.execute(
+            text("SELECT seq, action, subject_ref, actor_kind, actor_id, detail FROM gov.audit_log")
+        ).all()
+    )
+
+
+def test_every_case_change_is_audited_by_case_reference_with_no_score(conn: Connection) -> None:
+    case = _open_case(conn)
+    advance(conn, case, Action.DISMISS, Actor.MENTOR, "m1", DAY, CFG)
+    rows = _audit_rows(conn)
+    assert [r.action for r in rows] == ["case.opened", "case.dismiss"]
+    assert {r.subject_ref for r in rows} == {f"case-{case}"}
+    assert (rows[1].actor_kind, rows[1].actor_id) == ("mentor", "m1")
+    assert rows[1].detail["from"] == "new" and rows[1].detail["to"] == "dismissed"
+    assert "0.9" not in str(rows[0].detail)  # the opening probability is never logged
+    assert audit_verify(conn).ok
+
+
+def test_a_refused_action_leaves_no_audit_entry(conn: Connection) -> None:
+    case = _open_case(conn)
+    before = len(_audit_rows(conn))
+    with pytest.raises(NotAllowed):
+        advance(conn, case, Action.APPROVE, Actor.AGENT, None, DAY, CFG)
+    assert len(_audit_rows(conn)) == before
+
+
+def test_rerunning_a_night_adds_no_audit_entries(conn: Connection) -> None:
+    run_night(conn, [Score(1, 0.9), Score(2, 0.8)], DAY, CFG)
+    before = len(_audit_rows(conn))
+    run_night(conn, [Score(1, 0.9), Score(2, 0.8)], DAY, CFG)
+    assert len(_audit_rows(conn)) == before == 2
+
+
+def test_timer_changes_are_audited_as_system_actions(conn: Connection) -> None:
+    case = _open_case(conn)
+    run_timers(conn, DAY + timedelta(days=2), CFG)
+    last = _audit_rows(conn)[-1]
+    assert (last.action, last.actor_kind, last.subject_ref) == (
+        "case.overdue",
+        "system",
+        f"case-{case}",
+    )
 
 
 def test_migration_0003_downgrades_and_upgrades(conn: Connection) -> None:

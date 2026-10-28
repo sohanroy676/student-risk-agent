@@ -13,12 +13,14 @@ through Postgres jsonb byte for byte, and a probability does not belong in the l
 
 import hashlib
 import json
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
 GENESIS = "0" * 64
+HEX64 = re.compile(r"[0-9a-f]{64}")
 
 # Keys that must never appear in `detail` (matched as substrings, case-insensitive).
 BANNED_DETAIL_KEYS = (
@@ -113,16 +115,44 @@ class VerifyResult:
     problem: str | None = None
 
 
-def verify_entries(stored: Iterable[StoredEntry]) -> VerifyResult:
-    """Walk entries in seq order; stop at the first one that does not fit the chain."""
+@dataclass(frozen=True)
+class Anchor:
+    """The head of the log at some moment, kept somewhere else (`seq:hash`)."""
+
+    seq: int
+    hash: str
+
+    def __str__(self) -> str:
+        return f"{self.seq}:{self.hash}"
+
+    @classmethod
+    def parse(cls, text: str) -> "Anchor":
+        seq, _, digest = text.strip().partition(":")
+        if not (seq.isdecimal() and int(seq) >= 1 and HEX64.fullmatch(digest)):
+            raise ValueError("an anchor looks like <seq>:<64 lowercase hex characters>")
+        return cls(int(seq), digest)
+
+
+def verify_entries(stored: Iterable[StoredEntry], anchor: Anchor | None = None) -> VerifyResult:
+    """Walk entries in seq order; stop at the first one that does not fit the chain.
+
+    With an `anchor`, the entry it names must still have the saved hash (catching a rewrite
+    that re-hashes every row) and the log must not be shorter than it (catching cut-off rows).
+    """
     head = GENESIS
     checked = 0
     for item in stored:
         problem = _problem(item, checked + 1, head)
+        at_anchor = anchor is not None and item.entry.seq == anchor.seq
+        if problem is None and at_anchor and anchor is not None and item.hash != anchor.hash:
+            problem = "entry does not match the saved anchor (history was rewritten)"
         if problem is not None:
             return VerifyResult(False, checked, head, item.entry.seq, problem)
         head = item.hash
         checked += 1
+    if anchor is not None and checked < anchor.seq:
+        problem = f"log has {checked} entries but the anchor is entry {anchor.seq} (cut off)"
+        return VerifyResult(False, checked, head, checked + 1, problem)
     return VerifyResult(True, checked, head)
 
 

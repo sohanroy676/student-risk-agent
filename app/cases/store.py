@@ -1,9 +1,10 @@
 """Postgres side of the case engine: nightly run, state changes, timers.
 
 Everything runs inside the caller's transaction. A case row is locked (`FOR UPDATE`) while it
-changes, and every change writes a `case_events` row. Re-running a night is safe: scores are
-upserted, the one-open-case index stops duplicates, and the per-mentor cap counts cases
-already opened for that date.
+changes, and every change writes a `case_events` row and a hash-chained audit entry (which
+refers to the case by `case-<id>` and carries no scores or bands). Re-running a night is safe:
+scores are upserted, the one-open-case index stops duplicates, and the per-mentor cap counts
+cases already opened for that date.
 """
 
 import json
@@ -17,6 +18,7 @@ from app.cases.bands import Band
 from app.cases.config import CaseConfig
 from app.cases.planner import History, NightPlan, Score, plan_night
 from app.cases.states import OPEN_STATES, Action, Actor, NotAllowed, State, step
+from app.core import audit_store as audit
 
 # How far either side of "a week ago" a stored score may be and still count as that week's.
 WEEK_AGO_SLACK_DAYS = 2
@@ -49,6 +51,20 @@ def _event(
             "actor": actor.value,
             "actor_id": actor_id,
             "detail": json.dumps(detail or {}),
+        },
+    )
+    audit.append(
+        conn,
+        actor_kind=actor.value,
+        actor_id=actor_id,
+        action=f"case.{kind}",
+        subject_kind="case",
+        subject_ref=f"case-{case_id}",
+        detail={
+            "on": on.isoformat(),
+            "from": old and old.value,
+            "to": new and new.value,
+            **(detail or {}),
         },
     )
 
