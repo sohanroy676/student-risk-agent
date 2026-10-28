@@ -11,6 +11,8 @@ from app.cases.states import (
     Actor,
     NotAllowed,
     State,
+    WrongActor,
+    WrongState,
     due_date,
     step,
 )
@@ -53,6 +55,23 @@ def test_every_action_by_every_wrong_actor_is_refused() -> None:
             for state in starts:
                 with pytest.raises(NotAllowed):
                     step(state, 1, action, actor, DAY, CFG)
+
+
+def test_a_wrong_state_and_a_wrong_actor_are_told_apart() -> None:
+    with pytest.raises(WrongState):
+        step(State.NEW, 1, Action.APPROVE, Actor.MENTOR, DAY, CFG)
+    with pytest.raises(WrongActor):
+        step(State.DRAFTED, 1, Action.APPROVE, Actor.STAFF, DAY, CFG)
+
+
+def test_when_both_are_wrong_the_actor_is_what_is_reported() -> None:
+    """A caller who may not approve at all is told so, not what state the case is in."""
+    with pytest.raises(WrongActor):
+        step(State.NEW, 1, Action.APPROVE, Actor.STAFF, DAY, CFG)
+
+
+def test_both_kinds_are_not_allowed_moves() -> None:
+    assert issubclass(WrongState, NotAllowed) and issubclass(WrongActor, NotAllowed)
 
 
 def test_only_a_mentor_can_approve() -> None:

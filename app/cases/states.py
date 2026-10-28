@@ -70,6 +70,14 @@ class NotAllowed(Exception):  # noqa: N818 - reads better than NotAllowedError a
     """The move is illegal from this state, or this kind of actor may not make it."""
 
 
+class WrongState(NotAllowed):
+    """The case is in a state this action cannot start from (HTTP 409)."""
+
+
+class WrongActor(NotAllowed):
+    """This kind of actor, or this person, may not make the move (HTTP 403)."""
+
+
 @dataclass(frozen=True)
 class Step:
     state: State
@@ -94,10 +102,10 @@ def step(
 ) -> Step:
     """The case after `action`, or `NotAllowed`. `continue` past `max_cycles` escalates."""
     starts, actors = RULES[action]
-    if state not in starts:
-        raise NotAllowed(f"cannot {action.value} a {state.value} case")
     if actor not in actors:
-        raise NotAllowed(f"a {actor.value} cannot {action.value}")
+        raise WrongActor(f"a {actor.value} cannot {action.value}")
+    if state not in starts:
+        raise WrongState(f"cannot {action.value} a {state.value} case")
     if action is Action.SAVE_PLAN:
         new, new_cycle = State.DRAFTED, cycle
     elif action is Action.APPROVE:
