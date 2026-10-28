@@ -114,3 +114,82 @@ def test_a_failing_night_stores_raw_and_report_but_not_core(empty_db: str, tmp_p
 def test_migration_0002_downgrades_and_upgrades_again(empty_db: str) -> None:
     _alembic("downgrade", "0001")
     _alembic("upgrade", "head")
+
+
+def _query(url: str, sql: str) -> list[tuple[object, ...]]:
+    engine = create_engine(url)
+    try:
+        with engine.connect() as conn:
+            return [tuple(row) for row in conn.execute(text(sql)).all()]
+    finally:
+        engine.dispose()
+
+
+def _write_mentors(folder: Path, rows: dict[int, str]) -> None:
+    lines = ["student_id,mentor_id", *(f"{s},{m}" for s, m in rows.items())]
+    (folder / "mentor_assignments.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def test_mentor_assignments_load_and_reloading_changes_nothing(
+    empty_db: str, tmp_path: Path
+) -> None:
+    generator.write_csv(generator.generate(seed=3), tmp_path)
+    _write_mentors(tmp_path, {1: "m1", 2: "m1", 3: "m2"})
+    assert ingest_csv_dir(empty_db, tmp_path, RUN).status == "ok"
+    mentors = "SELECT student_id, mentor_id FROM app.mentor_assignments ORDER BY 1"
+    assert _query(empty_db, mentors) == [(1, "m1"), (2, "m1"), (3, "m2")]
+    assert _query(empty_db, "SELECT count(*) FROM raw.mentor_assignments") == [(3,)]
+    audited = "SELECT detail FROM gov.audit_log WHERE action = 'mentor_assignments.loaded'"
+    first = _query(empty_db, audited)
+    assert len(first) == 1 and first[0][0]["added"] == 3 and first[0][0]["changed"] == 0  # type: ignore[index]
+    ingest_csv_dir(empty_db, tmp_path, RUN)
+    assert _query(empty_db, mentors) == [(1, "m1"), (2, "m1"), (3, "m2")]
+    assert len(_query(empty_db, audited)) == 1  # nothing changed, so nothing to record
+
+
+def test_reassigning_a_student_updates_the_mentor_and_is_audited(
+    empty_db: str, tmp_path: Path
+) -> None:
+    generator.write_csv(generator.generate(seed=3), tmp_path)
+    _write_mentors(tmp_path, {1: "m1", 2: "m1"})
+    ingest_csv_dir(empty_db, tmp_path, RUN)
+    _write_mentors(tmp_path, {1: "m2", 2: "m1", 3: "m3"})
+    ingest_csv_dir(empty_db, tmp_path, RUN)
+    mentors = "SELECT student_id, mentor_id FROM app.mentor_assignments ORDER BY 1"
+    assert _query(empty_db, mentors) == [(1, "m2"), (2, "m1"), (3, "m3")]
+    details = _query(
+        empty_db,
+        "SELECT detail FROM gov.audit_log WHERE action = 'mentor_assignments.loaded' ORDER BY seq",
+    )
+    assert [(d[0]["added"], d[0]["changed"]) for d in details] == [(2, 0), (1, 1)]  # type: ignore[index]
+    # who got whom is in the table, not the log: only counts and the source are recorded
+    assert all(set(d[0]) == {"source", "added", "changed"} for d in details)  # type: ignore[call-overload]
+
+
+def test_a_file_that_omits_a_student_leaves_their_assignment_alone(
+    empty_db: str, tmp_path: Path
+) -> None:
+    generator.write_csv(generator.generate(seed=3), tmp_path)
+    _write_mentors(tmp_path, {1: "m1", 2: "m1"})
+    ingest_csv_dir(empty_db, tmp_path, RUN)
+    _write_mentors(tmp_path, {2: "m2"})
+    ingest_csv_dir(empty_db, tmp_path, RUN)
+    mentors = "SELECT student_id, mentor_id FROM app.mentor_assignments ORDER BY 1"
+    assert _query(empty_db, mentors) == [(1, "m1"), (2, "m2")]
+
+
+def test_a_failing_night_changes_no_assignment(empty_db: str, tmp_path: Path) -> None:
+    generator.write_csv(generator.generate(seed=3), tmp_path)
+    _write_mentors(tmp_path, {1: "m1"})
+    ingest_csv_dir(empty_db, tmp_path, RUN)
+    _write_mentors(tmp_path, {1: "m9"})
+    (tmp_path / "attendance.csv").write_text("student_id,course_id,class_date,present\n")
+    assert ingest_csv_dir(empty_db, tmp_path, RUN).status == "fail"
+    assert _query(empty_db, "SELECT mentor_id FROM app.mentor_assignments") == [("m1",)]
+
+
+def test_migration_0006_downgrades_and_upgrades_again(empty_db: str) -> None:
+    _alembic("downgrade", "0005")
+    assert _query(empty_db, "SELECT to_regclass('raw.mentor_assignments')") == [(None,)]
+    _alembic("upgrade", "head")
+    assert _query(empty_db, "SELECT count(*) FROM raw.mentor_assignments") == [(0,)]

@@ -11,7 +11,10 @@ from app.ingest.clean import clean
 from app.ingest.db import _records, _upsert_sql
 from app.ingest.schema import SPEC_BY_NAME, SPECS
 
-MIGRATION = Path("app/db/migrations/versions/0002_raw_tables_and_dq_reports.py")
+MIGRATIONS = (
+    Path("app/db/migrations/versions/0002_raw_tables_and_dq_reports.py"),
+    Path("app/db/migrations/versions/0006_raw_mentor_assignments.py"),
+)
 
 
 def test_upsert_updates_non_key_columns() -> None:
@@ -29,14 +32,18 @@ def test_upsert_with_only_key_columns_does_nothing_on_conflict() -> None:
     assert _upsert_sql("core", SPEC_BY_NAME["lms_events"]).endswith("DO NOTHING")
 
 
-def test_raw_migration_matches_the_specs() -> None:
-    loader = importlib.util.spec_from_file_location("m0002", MIGRATION)
-    assert loader is not None and loader.loader is not None
-    module = importlib.util.module_from_spec(loader)
-    loader.loader.exec_module(module)
-    assert set(module.RAW_TABLES) == {s.name for s in SPECS}
+def test_raw_migrations_match_the_specs() -> None:
+    raw_tables: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {}
+    for path in MIGRATIONS:
+        loader = importlib.util.spec_from_file_location(f"m{path.name[:4]}", path)
+        assert loader is not None and loader.loader is not None
+        module = importlib.util.module_from_spec(loader)
+        loader.loader.exec_module(module)
+        assert not raw_tables.keys() & module.RAW_TABLES.keys()  # no table made twice
+        raw_tables.update(module.RAW_TABLES)
+    assert set(raw_tables) == {s.name for s in SPECS}
     for spec in SPECS:
-        columns, key = module.RAW_TABLES[spec.name]
+        columns, key = raw_tables[spec.name]
         assert list(columns) == spec.column_names
         assert key == spec.key
 
