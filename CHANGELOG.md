@@ -9,20 +9,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add CSV connector and data-quality report
+
+### Changed
+
+- Record v0.3 merge and set up v0.4
+
+## [0.3.0] - 2026-10-28
+
+### Added
+
+- Add SHAP contributions and reason templates
+- Add Fairlearn audit of recall by protected group
+- Add promotion gate, MLflow registry and model card
+
+### Changed
+
+- Calibrate LightGBM with isotonic regression
+- Cap top-10% precision target for high base rates
+
+## [0.2.0] - 2026-10-28
+
+### Added
+
 - Add OULAD and UCI dataset loaders
 - Add point-in-time build_snapshot with leakage test
 - Add rule score and weekly logistic-regression baseline
 - Add marks, LMS and enrolment-context features
+- Add setup guide, refresh changelog and session notes
+- Add per-activity-type LMS click features
+- Revert "feat(features): add per-activity-type LMS click features"
 
 ### Changed
 
 - Refresh memory bank and regenerate changelog
 - Record baseline AUC by week on real OULAD
 - Update baseline AUC with richer features
+- Update active context for end of v0.2
+- Compare LightGBM with logistic regression
+- Relax OULAD AUC targets to 0.68 and 0.79
+- Refresh next-session prompt for v0.3
 
 ### Fixed
 
 - Handle real OULAD and UCI file quirks
+- Load event_type from Postgres for LMS features
+- Make the as_of load check non-vacuous
 
 ## [0.1.0] - 2026-10-27
 
