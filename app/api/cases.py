@@ -11,7 +11,7 @@ from datetime import date
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import Connection, text
 
 from app.api.deps import (
@@ -22,12 +22,13 @@ from app.api.deps import (
     get_today,
     require_roles,
 )
+from app.cases.drafts import InvalidMessage
 from app.cases.states import OPEN_STATES, Action, Actor, State, WrongActor, WrongState
-from app.cases.store import advance
+from app.cases.store import advance, edit_draft
 from app.core.auth import Principal, Role
 
 CASE_READERS = (Role.MENTOR, Role.STAFF, Role.ADMIN)
-REASON_READERS = (Role.MENTOR, Role.STAFF)
+REASON_READERS = (Role.MENTOR, Role.STAFF)  # the draft message has the same audience
 CASE_ACTORS = {Role.MENTOR: Actor.MENTOR, Role.STAFF: Actor.STAFF}
 OPEN_VALUES = sorted(s.value for s in OPEN_STATES)
 # The only event details a client may see (the stored detail is free-form JSON).
@@ -79,14 +80,33 @@ class CaseReason(BaseModel):
     text: str
 
 
+class Draft(BaseModel):
+    version: int
+    source: Literal["template", "agent", "mentor"]
+    author: str
+    created_on: date
+    message: str
+
+
 class CaseDetail(CaseSummary):
     timeline: list[TimelineEvent]
     reasons: list[CaseReason]
+    draft: Draft | None
 
 
 class ActionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     action: Literal["approve", "dismiss", "continue", "resolve", "escalate"]
+
+
+class DraftRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    message: str = Field(max_length=5000)  # the real limit is in check_message
+
+
+class DraftResult(BaseModel):
+    id: int
+    version: int
 
 
 class ActionResult(BaseModel):
@@ -168,6 +188,7 @@ def case_detail(
         {"id": case_id},
     ).mappings()
     reasons: list[CaseReason] = []
+    draft: Draft | None = None
     if principal.role in REASON_READERS:
         found = conn.execute(
             text(
@@ -178,10 +199,23 @@ def case_detail(
             {"id": case_id},
         ).mappings()
         reasons = [CaseReason(**r) for r in found]
+        latest = (
+            conn.execute(
+                text(
+                    "SELECT version, source, author, created_on, message FROM app.case_drafts "
+                    "WHERE case_id = :id ORDER BY version DESC LIMIT 1"
+                ),
+                {"id": case_id},
+            )
+            .mappings()
+            .one_or_none()
+        )
+        draft = None if latest is None else Draft(**latest)
     return CaseDetail(
         **row,
         timeline=[TimelineEvent(**{**e, "detail": _clean_detail(e["detail"])}) for e in events],
         reasons=reasons,
+        draft=draft,
     )
 
 
@@ -212,3 +246,27 @@ def act_on_case(
     except WrongState as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
     return ActionResult(id=case_id, state=new_state)
+
+
+@router.put("/cases/{case_id}/draft")
+def put_draft(
+    case_id: int,
+    body: DraftRequest,
+    request: Request,
+    principal: Annotated[Principal, Depends(require_roles(Role.MENTOR))],
+    conn: Conn,
+    today: Annotated[date, Depends(get_today)],
+    recorder: Annotated[Denial, Depends(get_denial_recorder)],
+) -> DraftResult:
+    """The case's own mentor rewords the draft while it waits for approval (never after)."""
+    try:
+        version = edit_draft(conn, case_id, body.message, principal.subject, today)
+    except LookupError:
+        raise NOT_FOUND from None
+    except WrongActor as error:
+        raise denied(recorder, request, principal.subject, principal.role.value) from error
+    except WrongState as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    except InvalidMessage as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return DraftResult(id=case_id, version=version)

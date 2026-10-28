@@ -12,9 +12,10 @@ from sqlalchemy import Connection, create_engine, text
 from sqlalchemy.exc import IntegrityError
 
 from app.cases.config import CaseConfig
+from app.cases.drafts import InvalidMessage, template_message
 from app.cases.planner import Score
-from app.cases.states import Action, Actor, NotAllowed, State
-from app.cases.store import advance, run_night, run_timers
+from app.cases.states import Action, Actor, NotAllowed, State, WrongState
+from app.cases.store import advance, draft_new_cases, edit_draft, run_night, run_timers
 from app.core.audit_store import verify as audit_verify
 
 TEST_DB = os.environ.get("TEST_DATABASE_URL")
@@ -292,4 +293,118 @@ def test_migration_0003_downgrades_and_upgrades(conn: Connection) -> None:
     conn.rollback()
     conn.close()
     _alembic("downgrade", "0002")
+    _alembic("upgrade", "head")
+
+
+def _drafts(conn: Connection, case: int) -> list[Any]:
+    return list(
+        conn.execute(
+            text(
+                "SELECT version, source, author, message FROM app.case_drafts "
+                "WHERE case_id = :c ORDER BY version"
+            ),
+            {"c": case},
+        ).all()
+    )
+
+
+def test_new_cases_get_a_template_draft_and_wait_for_approval(conn: Connection) -> None:
+    run_night(conn, [Score(1, 0.9), Score(7, 0.8)], DAY, CFG)
+    drafted = draft_new_cases(conn, DAY, CFG)
+    assert len(drafted) == 2
+    states = conn.execute(text("SELECT state, approved_by FROM app.cases")).all()
+    assert {(s.state, s.approved_by) for s in states} == {("drafted", None)}
+    for case in drafted:
+        (draft,) = _drafts(conn, case)
+        assert (draft.version, draft.source, draft.author) == (1, "template", "template")
+        assert draft.message == template_message(1)
+    event = conn.execute(
+        text("SELECT actor_kind, actor_id FROM app.case_events WHERE kind = 'save_plan'")
+    ).first()
+    assert event is not None and (event.actor_kind, event.actor_id) == ("agent", "template")
+
+
+def test_drafting_twice_changes_nothing(conn: Connection) -> None:
+    case = _open_case(conn)
+    assert draft_new_cases(conn, DAY, CFG) == [case]
+    before = len(_audit_rows(conn))
+    assert draft_new_cases(conn, DAY, CFG) == []
+    assert len(_drafts(conn, case)) == 1 and len(_audit_rows(conn)) == before
+    assert audit_verify(conn).ok
+
+
+def test_a_mentor_edit_adds_a_version_and_keeps_the_old_one(conn: Connection) -> None:
+    case = _open_case(conn)
+    draft_new_cases(conn, DAY, CFG)
+    assert edit_draft(conn, case, "  Hi, can we talk on Friday? ", "m1", DAY) == 2
+    rows = _drafts(conn, case)
+    assert [(r.version, r.source, r.author) for r in rows] == [
+        (1, "template", "template"),
+        (2, "mentor", "m1"),
+    ]
+    assert rows[1].message == "Hi, can we talk on Friday?"
+    assert _scalar(conn, "SELECT state FROM app.cases WHERE id = :i", i=case) == "drafted"
+    last = _audit_rows(conn)[-1]
+    assert (last.action, last.actor_id, last.detail["version"]) == ("case.draft_edited", "m1", 2)
+    assert "Friday" not in str(last.detail)  # the wording never enters the audit log
+    assert audit_verify(conn).ok
+
+
+def test_saving_the_same_wording_again_adds_nothing(conn: Connection) -> None:
+    case = _open_case(conn)
+    draft_new_cases(conn, DAY, CFG)
+    assert edit_draft(conn, case, "Hello", "m1", DAY) == 2
+    before = len(_audit_rows(conn))
+    assert edit_draft(conn, case, " Hello ", "m1", DAY) == 2
+    assert len(_drafts(conn, case)) == 2 and len(_audit_rows(conn)) == before
+
+
+def test_only_the_cases_own_mentor_may_edit(conn: Connection) -> None:
+    case = _open_case(conn)
+    draft_new_cases(conn, DAY, CFG)
+    with pytest.raises(NotAllowed):
+        edit_draft(conn, case, "Hello", "m2", DAY)
+    assert len(_drafts(conn, case)) == 1
+
+
+def test_a_draft_cannot_be_edited_before_it_exists_or_after_approval(conn: Connection) -> None:
+    case = _open_case(conn)
+    with pytest.raises(WrongState):
+        edit_draft(conn, case, "Hello", "m1", DAY)  # still new
+    draft_new_cases(conn, DAY, CFG)
+    advance(conn, case, Action.APPROVE, Actor.MENTOR, "m1", DAY, CFG)
+    with pytest.raises(WrongState):
+        edit_draft(conn, case, "Changed after approval", "m1", DAY)
+    assert [r.version for r in _drafts(conn, case)] == [1]
+
+
+def test_an_unknown_case_cannot_be_edited(conn: Connection) -> None:
+    with pytest.raises(LookupError):
+        edit_draft(conn, 999, "Hello", "m1", DAY)
+
+
+@pytest.mark.parametrize("message", ["", "You are at risk", "x" * 1001])
+def test_a_refused_message_stores_nothing(conn: Connection, message: str) -> None:
+    case = _open_case(conn)
+    draft_new_cases(conn, DAY, CFG)
+    before = len(_audit_rows(conn))
+    with pytest.raises(InvalidMessage):
+        edit_draft(conn, case, message, "m1", DAY)
+    assert len(_drafts(conn, case)) == 1 and len(_audit_rows(conn)) == before
+
+
+def test_the_database_refuses_a_second_row_for_the_same_version(conn: Connection) -> None:
+    case = _open_case(conn)
+    draft_new_cases(conn, DAY, CFG)
+    with pytest.raises(IntegrityError):
+        conn.execute(
+            text("INSERT INTO app.case_drafts VALUES (:c, 1, 'mentor', 'm1', '2026-03-02', 'x')"),
+            {"c": case},
+        )
+
+
+def test_migration_0009_downgrades_and_upgrades(conn: Connection) -> None:
+    conn.rollback()
+    conn.close()
+    _alembic("downgrade", "0008")
     _alembic("upgrade", "head")

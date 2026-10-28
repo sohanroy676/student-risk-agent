@@ -28,6 +28,7 @@ RUN_DETAIL_KEYS = (
     "deferred",
     "unassigned",
     "reasons_written",
+    "drafted",
     "moved_to_review",
     "newly_overdue",
     "cause",

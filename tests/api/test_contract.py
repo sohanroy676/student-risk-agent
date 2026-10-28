@@ -83,6 +83,7 @@ def test_there_are_api_routes_to_check() -> None:
         "/api/caseload",
         "/api/cases/{case_id}",
         "/api/cases/{case_id}/actions",
+        "/api/cases/{case_id}/draft",
     }
 
 
@@ -194,6 +195,32 @@ def test_an_action_request_accepts_only_the_five_human_actions(
 ) -> None:
     app.dependency_overrides[deps.get_conn] = lambda: None
     reply = client.post("/api/cases/1/actions", json=body, headers=bearer(pems, ["mentor"]))
+    assert reply.status_code == 422
+
+
+@pytest.mark.parametrize("role", ["staff", "admin"])
+def test_only_a_mentor_can_edit_a_draft(
+    client: TestClient, pems: tuple[str, str], role: str
+) -> None:
+    reply = client.put(
+        "/api/cases/1/draft", json={"message": "Hello"}, headers=bearer(pems, [role])
+    )
+    assert reply.status_code == 403 and reply.json() == {"detail": "not allowed"}
+
+
+def test_the_draft_request_takes_only_a_message() -> None:
+    schema = app.openapi()["components"]["schemas"]["DraftRequest"]
+    assert set(schema["properties"]) == {"message"} and schema["additionalProperties"] is False
+
+
+@pytest.mark.parametrize(
+    "body", [{}, {"message": 5}, {"message": "x" * 5001}, {"message": "ok", "author": "x"}]
+)
+def test_a_malformed_draft_request_is_a_422_before_the_database(
+    client: TestClient, pems: tuple[str, str], body: dict[str, Any]
+) -> None:
+    app.dependency_overrides[deps.get_conn] = lambda: None
+    reply = client.put("/api/cases/1/draft", json=body, headers=bearer(pems, ["mentor"]))
     assert reply.status_code == 422
 
 

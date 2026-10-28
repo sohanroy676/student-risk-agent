@@ -122,6 +122,15 @@ def test_a_night_scores_everyone_opens_capped_cases_and_writes_reasons(
         == 0
     )
 
+    # every new case got a template draft and waits, unapproved, for its mentor
+    assert summary.drafted == summary.opened
+    assert _count(engine, "SELECT count(*) FROM app.cases WHERE state <> 'drafted'") == 0
+    assert _count(engine, "SELECT count(*) FROM app.cases WHERE approved_by IS NOT NULL") == 0
+    assert _count(engine, "SELECT count(*) FROM app.case_drafts") == summary.opened
+    assert _count(engine, "SELECT count(*) FROM app.case_drafts WHERE source <> 'template'") == 0
+    saved = "SELECT count(*) FROM gov.audit_log WHERE action = 'case.save_plan'"
+    assert _count(engine, saved) == summary.opened
+
 
 def test_mentors_from_the_csv_feed_the_first_night_with_no_manual_step(
     engine: Engine, csv_dir: Path, registry: Registry
@@ -141,7 +150,13 @@ def test_running_the_same_night_twice_changes_nothing(
     _night(engine, csv_dir, registry)
     _assign_mentors(engine)
     _night(engine, csv_dir, registry)
-    tables = ("app.risk_scores", "app.cases", "app.case_events", "app.case_reasons")
+    tables = (
+        "app.risk_scores",
+        "app.cases",
+        "app.case_events",
+        "app.case_reasons",
+        "app.case_drafts",
+    )
     before = {t: _count(engine, f"SELECT count(*) FROM {t}") for t in tables}  # noqa: S608
     _night(engine, csv_dir, registry)
     assert {t: _count(engine, f"SELECT count(*) FROM {t}") for t in tables} == before  # noqa: S608

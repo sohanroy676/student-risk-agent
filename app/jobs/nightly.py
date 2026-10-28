@@ -1,4 +1,5 @@
-"""The nightly run: ingest, snapshot, score, open cases, write reasons, run the day-7 timers.
+"""The nightly run: ingest, snapshot, score, open cases, write reasons and template drafts, run
+the day-7 timers.
 
 `run_pipeline` is the whole night and holds all the logic; the Celery task only wires it to
 settings. Everything is point-in-time: features see data dated on or before `as_of` and the
@@ -7,7 +8,8 @@ model never receives a protected attribute (`CoreTables` has no path for one).
 Scoring, cases, reasons and timers share one transaction, so a night either lands completely or
 not at all. A data-quality `fail` stops the night after the raw rows and the report are stored,
 and raises, so the failure is visible in the task result. Nothing here contacts a student, and
-reasons are stored only for students with an open case (amber or red), for mentors.
+reasons are stored only for students with an open case (amber or red), for mentors. New cases
+get a template draft message and wait for the mentor's approval.
 """
 
 import logging
@@ -23,7 +25,7 @@ from sqlalchemy import Connection, Engine, create_engine, text
 from app.cases.config import CaseConfig
 from app.cases.planner import Score
 from app.cases.states import OPEN_STATES
-from app.cases.store import run_night, run_timers
+from app.cases.store import draft_new_cases, run_night, run_timers
 from app.core import audit_store as audit
 from app.core.settings import get_settings
 from app.features.db import load_core_tables
@@ -59,6 +61,7 @@ class NightSummary:
     deferred: int
     unassigned: int
     reasons: int
+    drafted: int
     moved_to_review: int
     newly_overdue: int
 
@@ -190,6 +193,7 @@ def _audit_detail(summary: NightSummary) -> dict[str, object]:
         "deferred": summary.deferred,
         "unassigned": summary.unassigned,
         "reasons_written": summary.reasons,
+        "drafted": summary.drafted,
         "moved_to_review": summary.moved_to_review,
         "newly_overdue": summary.newly_overdue,
     }
@@ -243,6 +247,7 @@ def run_pipeline(
             rows = reason_rows(model, features, by_student, as_of)
             _store_reasons(conn, rows, list(by_student.values()), as_of)
             reasons = len(rows)
+        drafted = draft_new_cases(conn, as_of, cfg)
         timers = run_timers(conn, as_of, cfg)
         summary = NightSummary(
             as_of=as_of.isoformat(),
@@ -254,6 +259,7 @@ def run_pipeline(
             deferred=len(plan.deferred),
             unassigned=len(plan.unassigned),
             reasons=reasons,
+            drafted=len(drafted),
             moved_to_review=len(timers.moved_to_review),
             newly_overdue=len(timers.newly_overdue),
         )
