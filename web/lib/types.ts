@@ -72,3 +72,33 @@ export interface CaseDetail extends CaseSummary {
   reasons: CaseReason[];
   draft: Draft | null;
 }
+
+// Model registry (app/api/models.py). Aggregates only: nothing here is about a single student.
+
+export interface GateResult {
+  passed: boolean;
+  blocks: string[]; // soft blocks a named sign-off may accept
+  hard_failures: string[]; // missing or unassessed numbers: never acceptable
+  overridden: string[];
+  signed_off_by: string | null;
+}
+
+export interface ModelRelease {
+  release: number;
+  created: string;
+  weeks: number[];
+  in_production: boolean;
+  metrics: {
+    auc_week4: number | null;
+    ece: number | null;
+    recall_gaps: Record<string, number | null>;
+  } | null;
+  gate_now: GateResult | null; // what the gate says today with no sign-off
+  gate_recorded: Record<string, unknown> | null;
+  sign_off: Record<string, string> | null;
+}
+
+export interface ModelCard {
+  release: number;
+  markdown: string;
+}
