@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     database_url: str = ""
     redis_url: str = ""
     app_env: str = "dev"
+    app_timezone: str = "UTC"
 
 
 def get_settings() -> Settings:
