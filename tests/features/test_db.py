@@ -11,8 +11,9 @@ from sqlalchemy import create_engine
 
 from app.features.db import load_core_tables
 from app.features.snapshot import build_snapshot
+from app.features.tables import CoreTables
 from data.synthetic import generator
-from data.synthetic.frames import to_core_tables, to_frames
+from data.synthetic.frames import to_frames
 
 TEST_DB = os.environ.get("TEST_DATABASE_URL")
 # Parents before children so foreign keys hold.
@@ -30,6 +31,14 @@ LOAD_ORDER = (
 )
 
 pytestmark = pytest.mark.skipif(TEST_DB is None, reason="TEST_DATABASE_URL not set")
+
+
+def _frames(data: generator.SyntheticData) -> dict[str, pd.DataFrame]:
+    """Generator frames as the database holds them: core.lms_events has a unique natural key,
+    so the generator's exact duplicate events are dropped (as the ingest cleaner does)."""
+    frames = to_frames(data)
+    frames["lms_events"] = frames["lms_events"].drop_duplicates(keep="last").reset_index(drop=True)
+    return frames
 
 
 def _alembic(*args: str) -> None:
@@ -51,7 +60,7 @@ def loaded_db() -> Iterator[generator.SyntheticData]:
     data = generator.generate(seed=3)
     engine = create_engine(TEST_DB)
     try:
-        frames = to_frames(data)
+        frames = _frames(data)
         with engine.begin() as conn:
             for name in LOAD_ORDER:
                 frames[name].to_sql(
@@ -75,7 +84,7 @@ def test_database_snapshot_matches_in_memory_snapshot(
             from_db = build_snapshot(load_core_tables(conn, as_of), ids, as_of)
     finally:
         engine.dispose()
-    in_memory = build_snapshot(to_core_tables(loaded_db), ids, as_of)
+    in_memory = build_snapshot(CoreTables.from_frames(**_frames(loaded_db)), ids, as_of)
     assert_frame_equal(from_db, in_memory)
 
 
