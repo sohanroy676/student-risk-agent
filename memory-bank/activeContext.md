@@ -129,6 +129,13 @@ v0.3 "Model and explanations" is merged to `main` (PR #3) and tagged `v0.3.0`; C
 - Promotion in the UI: a release that passes gets one button. A blocked release gets a form where every block must be ticked and a reason (not just spaces) given before the button enables; it sends `{reason, covers}`, and the sign-off is recorded in the signed-in admin's name by the API. A release with a hard failure (missing or unassessed numbers) gets no form at all. A 409 from the gate is shown as "the gate still blocks this release: <codes>".
 - 16 more Playwright tests (34 in all, dev and production build) with a fake registry in `e2e/fake-api.ts`; the real registry and gate are covered by the Python tests. No Python changed in this branch.
 
+## v0.5 concerns screen decisions (2026-10-28)
+- `feature/models-screen` is merged to `main` (e147e73), CI and Scale green.
+- `/concerns` for faculty, mentor and staff (admin: not available, no request). Faculty land here from `/` and get a raise form (student ID, category, optional note up to 500 characters, counter) plus their own list; they see "Seen by the mentor" but never who acknowledged, and nothing about cases, bands or scores. Mentor and staff get the list (newest first, filter "not acknowledged", paging) with who raised each concern and an Acknowledge button.
+- Faculty enter the internal student ID by hand: the data has no faculty-to-student link, so there is nothing to pick from. Add a picker when the college data has sections per teacher.
+- Notes are rendered as text only (tested with hostile HTML). The server's errors (unknown student, daily limit of 20) are shown as written.
+- 15 more Playwright tests (49 in all, dev and production build); the "faculty have no screens" test became "faculty land on concerns, see no case screens and cause no case request".
+
 ## Next step
 Merge `feature/admin-api` (branch CI green, run 40691561309), check both workflows on `main`, then tag `v0.4.0` (ask first). After v0.4: fairness audit and gate re-run on the red band, before the v0.5 models and fairness screen.
 Open: re-run the fairness audit and gate on the red band (own branch); the manual v0.3 checks (read a model card, reasons for 10 students); optional pytest-xdist to trim `checks`. Demographics must not be added as features.
