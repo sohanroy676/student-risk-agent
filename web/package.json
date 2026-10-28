@@ -5,7 +5,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "next": "15.5.9",
@@ -13,6 +15,8 @@
     "react-dom": "19.1.1"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "3.3.7",
+    "@playwright/test": "1.55.0",
     "@types/node": "22.15.0",
     "@types/react": "19.1.12",
     "eslint": "9.34.0",

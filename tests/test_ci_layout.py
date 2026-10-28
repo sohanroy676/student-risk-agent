@@ -43,3 +43,16 @@ def test_the_scale_test_has_its_own_workflow_and_the_shards_exclude_it() -> None
 def test_the_secret_scan_still_reads_the_full_history() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "gitleaks/gitleaks-action" in text and "fetch-depth: 0" in text
+
+
+def test_the_web_app_has_its_own_ci_job_with_every_check() -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+    for step in (
+        "npm ci",
+        "npm run lint",
+        "prettier --check",
+        "npm run typecheck",
+        "playwright install",
+        "playwright test",
+    ):
+        assert step in text, step

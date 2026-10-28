@@ -64,7 +64,11 @@ services:
         condition: service_healthy
 
   web:
-    build: ./web
+    build:
+      context: ./web
+      args:
+        API_URL: http://api:8000
+        NEXT_PUBLIC_DEV_TOKEN_LOGIN: ${NEXT_PUBLIC_DEV_TOKEN_LOGIN:-false}
     ports:
       - "3000:3000"
     depends_on:
