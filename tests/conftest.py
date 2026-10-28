@@ -47,3 +47,16 @@ def oulad_dir(tmp_path: Path) -> Path:
     for name, text in files.items():
         (tmp_path / name).write_text(text, encoding="utf-8")
     return tmp_path
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Tag every test that needs a real Postgres, so CI can run them as separate jobs.
+
+    Those tests all skip themselves with a reason naming TEST_DATABASE_URL; the tag follows
+    that reason, so a new database test is picked up without anyone remembering a marker.
+    """
+    for item in items:
+        for mark in item.iter_markers("skipif"):
+            if "TEST_DATABASE_URL" in str(mark.kwargs.get("reason", "")):
+                item.add_marker(pytest.mark.postgres)
+                break
