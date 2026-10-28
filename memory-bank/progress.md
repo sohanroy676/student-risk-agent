@@ -42,7 +42,9 @@
 - `feature/nightly-pipeline`: `Registry.load_production`, Celery app and beat schedule (`app/jobs/__init__.py`), `app/jobs/nightly.py` (`run_pipeline`, `run_nightly`), migration 0004 (`app.case_reasons`), generator `n_students`, 5,000-student timing test (Postgres, CI only). Local suite 548 passed, 69 skipped
 - `feature/nightly-pipeline` merged to `main` (93b3dcb), CI green on the branch and on `main`
 - `feature/audit-chain`: migration 0005 (`gov.audit_log`), `app/core/audit.py` (pure chain, anchor), `app/core/audit_store.py` (append, verify, anchor, CLI), audit hooks in `app/cases/store.py` and `app/jobs/nightly.py`. Local suite 607 passed, 96 skipped; the Postgres tests (table, writer, tamper, concurrency, hooks) are first run by CI
-- Order after this: mentor-assignment import, core APIs, JWT auth + RBAC/RLS; Moodle connector deferred
+- `feature/audit-chain` merged to `main` (e83bee7), CI green on the branch and on `main` (about 14 min; was about 9)
+- `feature/mentor-assignment-import`: `mentor_assignments` connector table (spec, migration 0006 raw table, audit entry on change), tests incl. a CSV-fed first night. Local suite 620 passed, 102 skipped; its Postgres tests are first run by CI on `main` (merged before a branch CI run, by the user's choice)
+- Order after this: core APIs, JWT auth + RBAC/RLS; Moodle connector deferred
 
 ## Next
 
