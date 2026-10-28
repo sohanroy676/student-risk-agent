@@ -44,15 +44,20 @@
 - `feature/audit-chain`: migration 0005 (`gov.audit_log`), `app/core/audit.py` (pure chain, anchor), `app/core/audit_store.py` (append, verify, anchor, CLI), audit hooks in `app/cases/store.py` and `app/jobs/nightly.py`. Local suite 607 passed, 96 skipped; the Postgres tests (table, writer, tamper, concurrency, hooks) are first run by CI
 - `feature/audit-chain` merged to `main` (e83bee7), CI green on the branch and on `main` (about 14 min; was about 9)
 - `feature/mentor-assignment-import`: `mentor_assignments` connector table (spec, migration 0006 raw table, audit entry on change), tests incl. a CSV-fed first night. Local suite 620 passed, 102 skipped; its Postgres tests are first run by CI on `main` (merged before a branch CI run, by the user's choice)
-- Order after this: core APIs, JWT auth + RBAC/RLS; Moodle connector deferred
+- `feature/mentor-assignment-import` merged to `main` (920a9e3), CI green (680 passed, 42 skipped)
+- `feature/auth-rbac`: `app/core/auth.py` (token verification, roles), `app/api/deps.py`, `app/core/db.py`, migration 0007 (RLS, `app_api_role`, `gov.audit_head()`), PyJWT and cryptography pinned; tests in `tests/core/test_auth.py`, `tests/api/test_deps.py`, `tests/db/test_rls.py`. Branch CI green: 773 passed, 42 skipped
+- `chore/ci-timings`: `pytest --durations=15` in CI and the 5,000-night time printed (106 s measured)
+- Order after this: core APIs, admin API, then the `v0.4.0` tag; Moodle connector moved out of v0.4
 
 ## Next
 
-- Continue v0.4: audit chain next (see activeContext)
+- Continue v0.4: core APIs next, then the admin API (see activeContext)
 
 ## Unverified (added)
 
 - Dockerfile `libgomp1` install (no Docker locally)
+- `worker` and `beat` services in `docker-compose.yml` (never run)
+- Manual v0.3 checks: read a model card and the reasons for 10 example students
 
 ## Unverified
 
