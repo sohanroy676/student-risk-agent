@@ -37,7 +37,9 @@
 ## v0.4 (in progress, one branch per item, nothing pushed)
 
 - `feature/csv-connector-dq`: `app/ingest/` `schema.py` (11 table specs), `clean.py` (raw text to typed core tables, reject/warn rules, silent drop of exact duplicate rows), `quality.py` (ok/warn/fail report, no student values), `db.py` (idempotent upserts into raw then core; a `fail` night stores raw and the report but not core), `csv_connector.py` (`python -m app.ingest.csv_connector DIR [--dry-run]`); migration 0002 (raw.* tables, `raw.dq_reports`, unique index on `core.lms_events`). Local suite 443 passed; the 4 Postgres load tests in `tests/ingest/test_postgres_load.py` skip locally and are first run by CI
-- Order after this: case engine, nightly pipeline, audit chain, core APIs, JWT auth + RBAC/RLS; Moodle connector deferred
+- `feature/csv-connector-dq` merged to `main` (a067acf); that merge broke CI (unique key on `core.lms_events` vs the generator's duplicate events in `tests/features/test_db.py`), fixed by `fix/lms-duplicate-events`, merged as 3369c5d, CI green
+- `feature/case-engine` (not pushed): `app/cases/` `config.py` (all tunables, validated), `bands.py` (hysteresis), `states.py` (pure state machine + who may act + timers), `planner.py` (pure nightly plan: cases to open, per-mentor cap, deferred, unassigned), `store.py` (Postgres: `run_night`, `advance`, `run_timers`); migration 0003 (`app.mentor_assignments`, `risk_scores`, `cases`, `case_events`, one-open-case partial unique index). 62 pure tests pass locally; `tests/cases/test_store.py` (13 Postgres tests) skips locally, first run is CI
+- Order after this: nightly pipeline, audit chain, core APIs, JWT auth + RBAC/RLS; Moodle connector deferred
 
 ## Next
 
@@ -52,4 +54,4 @@
 - `docker compose up`
 - `cd web && npm run build`
 - `app/features/db.py` and `tests/features/test_db.py` (need Postgres; first run is CI)
-- `app/ingest/db.py` and `tests/ingest/test_postgres_load.py` (need Postgres; first run is CI)
+- `app/cases/store.py` and `tests/cases/test_store.py` (need Postgres; first run is CI)

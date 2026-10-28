@@ -35,5 +35,10 @@ v0.3 "Model and explanations" is merged to `main` (PR #3) and tagged `v0.3.0`; C
 - CSV connector: raw layer is all-text, keyed by the table's natural key, last row wins; cleaner rejects (never repairs) bad rows and cascades through foreign keys; exact duplicate rows are dropped silently, conflicting duplicates keep the later row. Report thresholds are untuned defaults: fail if an essential table is empty or >5% of a table's rows are rejected; warn on any issue or attendance/LMS data older than 3 days (marks and fees arrive in bursts, so they are not freshness-checked).
 - Rows removed from a later file are not deleted from raw/core (connector only adds and updates).
 
+- Case engine defaults (all untuned, in `app/cases/config.py`): red enter/exit 0.50/0.45, amber 0.30/0.25; rapid rise = +0.15 in 7 days and at least amber; 3 new cases per mentor per night (highest probability first, rest deferred and retried); 28-day reopen cooldown unless p >= 0.70; draft due 1 day, mentor review 3 days, follow-up 7 days, a third cycle escalates. Escalation routes to a person; it decides nothing about the student.
+- Only a mentor can approve, only the case's own mentor (RBAC proper comes with auth); only the agent saves a plan; only the system runs the day-7 timer.
+- Students with no row in `app.mentor_assignments` are reported as unassigned and get no case. Mentor ids are free text for now (OIDC subject later). Nothing populates `app.mentor_assignments` yet (admin API / import still to do).
+- Hypothesis found that `unassigned` order depended on input order; now sorted.
+
 ## Next step
-Review and merge `feature/csv-connector-dq` (ask first; merge locally into `main`, push, wait for CI, no PR). Then `feature/case-engine`: states, timers, hysteresis, rate limits, and the probability-threshold bands (decision 1), re-running the fairness audit on the red band. Demographics must not be added as features.
+Merge `feature/case-engine` after CI confirms the Postgres tests (push the branch first, or merge and watch CI; ask). Then `feature/nightly-pipeline`: Celery task chaining ingest, `build_snapshot`, the registry `production` alias (needs a model loader in `registry.py`), scoring, `run_night`, `run_timers`. The fairness audit and gate still need re-running on the red band (decision 1). Demographics must not be added as features.
