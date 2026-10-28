@@ -142,6 +142,12 @@ def api(pems: tuple[str, str], monkeypatch: pytest.MonkeyPatch) -> Iterator[Api]
                 ),
                 {"c": case_id, "f": f"case-{case_id}/attendance_rate/2026-03-02"},
             )
+        conn.execute(
+            text(
+                "INSERT INTO app.case_drafts VALUES "
+                "(1, 1, 'template', 'template', '2026-03-02', 'Hi, how are you getting on?')"
+            )
+        )
     verifier = TokenVerifier(ISS, AUD, StaticKey(pems[1]))
     app.dependency_overrides[deps.get_verifier] = lambda: verifier
     app.dependency_overrides[deps.get_today] = lambda: DAY
@@ -227,6 +233,94 @@ def test_a_hidden_case_and_a_missing_case_look_exactly_alike(api: Api) -> None:
     missing = api.get("/api/cases/999", "m1", "mentor")
     assert (hidden.status_code, hidden.json()) == (missing.status_code, missing.json())
     assert hidden.status_code == 404
+
+
+def put_draft(api: Api, case_id: int, body: dict[str, Any], subject: str, role: str) -> Any:
+    return api.client.put(f"/api/cases/{case_id}/draft", json=body, headers=api.auth(subject, role))
+
+
+def test_mentor_and_staff_see_the_latest_draft_but_admin_does_not(api: Api) -> None:
+    expected = {
+        "version": 1,
+        "source": "template",
+        "author": "template",
+        "created_on": "2026-03-02",
+        "message": "Hi, how are you getting on?",
+    }
+    assert api.get("/api/cases/1", "m1", "mentor").json()["draft"] == expected
+    assert api.get("/api/cases/1", "boss", "staff").json()["draft"] == expected
+    assert api.get("/api/cases/1", "root", "admin").json()["draft"] is None
+    assert api.get("/api/cases/3", "m1", "mentor").json()["draft"] is None  # none written yet
+
+
+def test_the_mentor_can_reword_a_draft_and_the_new_version_is_what_everyone_sees(
+    api: Api,
+) -> None:
+    reply = put_draft(api, 1, {"message": "  Can we talk on Friday?  "}, "m1", "mentor")
+    assert reply.status_code == 200 and reply.json() == {"id": 1, "version": 2}
+    draft = api.get("/api/cases/1", "boss", "staff").json()["draft"]
+    assert (draft["version"], draft["source"], draft["author"]) == (2, "mentor", "m1")
+    assert draft["message"] == "Can we talk on Friday?"
+    assert api.scalar("SELECT count(*) FROM app.case_drafts WHERE case_id = 1") == 2
+    assert api.scalar("SELECT count(*) FROM app.case_events WHERE kind = 'draft_edited'") == 1
+    with api.owner.connect() as conn:
+        assert verify(conn).ok
+
+
+def test_only_the_cases_own_mentor_can_edit_a_draft(api: Api) -> None:
+    body = {"message": "Hello"}
+    assert put_draft(api, 1, body, "m2", "mentor").status_code == 404  # hidden by row security
+    assert put_draft(api, 1, body, "boss", "staff").status_code == 403
+    assert put_draft(api, 1, body, "root", "admin").status_code == 403
+    assert put_draft(api, 1, body, "f1", "faculty").status_code == 403
+    assert put_draft(api, 999, body, "m1", "mentor").status_code == 404
+    assert api.scalar("SELECT count(*) FROM app.case_drafts") == 1
+
+
+def test_a_draft_is_frozen_once_approved_and_cannot_be_edited_outside_drafted(api: Api) -> None:
+    assert put_draft(api, 3, {"message": "Hello"}, "m1", "mentor").status_code == 409
+    assert put_draft(api, 2, {"message": "Hello"}, "m2", "mentor").status_code == 409  # new
+    assert api.act(1, "approve", "m1", "mentor").status_code == 200
+    reply = put_draft(api, 1, {"message": "Changed after approval"}, "m1", "mentor")
+    assert reply.status_code == 409
+    assert api.scalar("SELECT count(*) FROM app.case_drafts") == 1
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"message": ""},
+        {"message": "   "},
+        {"message": "You are at risk of failing"},
+        {"message": "Your score is low"},
+        {"message": "x" * 1001},
+        {"message": "x" * 5001},
+        {"message": "bad\x00byte"},
+        {"message": "ok", "source": "template"},
+        {"message": "ok", "author": "someone-else"},
+        {"message": ["ok"]},
+        {},
+    ],
+)
+def test_a_bad_draft_is_refused_and_nothing_is_stored(api: Api, body: dict[str, Any]) -> None:
+    assert put_draft(api, 1, body, "m1", "mentor").status_code == 422
+    assert api.scalar("SELECT count(*) FROM app.case_drafts") == 1
+
+
+def test_the_api_role_cannot_change_or_delete_a_draft_or_write_one_for_another_mentor(
+    api: Api,
+) -> None:
+    engine = get_engine()
+    for sql in (
+        "UPDATE app.case_drafts SET message = 'x'",
+        "DELETE FROM app.case_drafts",
+        "INSERT INTO app.case_drafts VALUES (2, 1, 'mentor', 'm1', '2026-03-02', 'x')",  # m2's case
+        "INSERT INTO app.case_drafts VALUES (1, 2, 'template', 'm1', '2026-03-02', 'x')",
+    ):
+        with pytest.raises(DBAPIError), engine.begin() as conn:
+            scope_to_principal(conn, "m1", "mentor")
+            conn.execute(text(sql))
+    assert api.scalar("SELECT count(*) FROM app.case_drafts") == 1
 
 
 def test_denied_roles_get_403_and_the_denial_is_audited_without_touching_cases(api: Api) -> None:

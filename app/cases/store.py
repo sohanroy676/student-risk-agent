@@ -17,13 +17,15 @@ from sqlalchemy.exc import IntegrityError
 
 from app.cases.bands import Band
 from app.cases.config import CaseConfig
+from app.cases.drafts import check_message, template_message
 from app.cases.planner import History, NightPlan, Score, plan_night
-from app.cases.states import OPEN_STATES, Action, Actor, State, WrongActor, step
+from app.cases.states import OPEN_STATES, Action, Actor, State, WrongActor, WrongState, step
 from app.core import audit_store as audit
 
 # How far either side of "a week ago" a stored score may be and still count as that week's.
 WEEK_AGO_SLACK_DAYS = 2
 OPEN_VALUES = sorted(s.value for s in OPEN_STATES)
+TEMPLATE_AUTHOR = "template"
 
 
 def _event(
@@ -253,6 +255,87 @@ def advance(
     )
     _event(conn, case_id, today, action.value, old, moved.state, actor, actor_id, detail)
     return moved.state
+
+
+def _add_draft(
+    conn: Connection, case_id: int, source: str, author: str, message: str, today: date
+) -> int:
+    """Add the next version of a case's draft and return its number."""
+    return int(
+        conn.execute(
+            text(
+                "INSERT INTO app.case_drafts "
+                "(case_id, version, source, author, created_on, message) "
+                "SELECT :case, coalesce(max(version), 0) + 1, :source, :author, :today, :message "
+                "FROM app.case_drafts WHERE case_id = :case RETURNING version"
+            ),
+            {
+                "case": case_id,
+                "source": source,
+                "author": author,
+                "today": today,
+                "message": message,
+            },
+        ).scalar_one()
+    )
+
+
+def draft_new_cases(conn: Connection, today: date, cfg: CaseConfig | None = None) -> list[int]:
+    """Give every new case its template draft and move it to `drafted`.
+
+    This is the template fallback of the drafting step: it saves the plan as the agent actor
+    (author `template`) until the v0.6 agent writes real drafts. Nothing is sent; a mentor must
+    still approve. Cases already drafted are left alone, so a re-run changes nothing.
+    """
+    found = conn.execute(
+        text("SELECT id, cycle FROM app.cases WHERE state = 'new' ORDER BY id")
+    ).tuples()
+    new_cases = list(found)
+    for case_id, cycle in new_cases:
+        _add_draft(conn, case_id, "template", TEMPLATE_AUTHOR, template_message(cycle), today)
+        advance(conn, case_id, Action.SAVE_PLAN, Actor.AGENT, TEMPLATE_AUTHOR, today, cfg)
+    return [case_id for case_id, _ in new_cases]
+
+
+def edit_draft(conn: Connection, case_id: int, message: str, mentor_id: str, today: date) -> int:
+    """Add a mentor's wording as the next draft version and return the version now current.
+
+    Only the case's own mentor, and only while the case is `drafted`: once approved the text is
+    frozen. Raises `LookupError` (unknown or hidden case), `WrongActor`, `WrongState` or
+    `InvalidMessage`. Saving the wording the draft already has changes nothing.
+    """
+    row = conn.execute(
+        text("SELECT state, mentor_id FROM app.cases WHERE id = :id FOR UPDATE"), {"id": case_id}
+    ).one_or_none()
+    if row is None:
+        raise LookupError(f"no case {case_id}")
+    if row.mentor_id != mentor_id:
+        raise WrongActor("a mentor can edit drafts only on their own mentees' cases")
+    if State(row.state) is not State.DRAFTED:
+        raise WrongState(f"cannot edit the draft of a {row.state} case")
+    clean = check_message(message)
+    latest = conn.execute(
+        text(
+            "SELECT version, message FROM app.case_drafts WHERE case_id = :id "
+            "ORDER BY version DESC LIMIT 1"
+        ),
+        {"id": case_id},
+    ).one_or_none()
+    if latest is not None and latest.message == clean:
+        return int(latest.version)
+    version = _add_draft(conn, case_id, "mentor", mentor_id, clean, today)
+    _event(
+        conn,
+        case_id,
+        today,
+        "draft_edited",
+        State.DRAFTED,
+        State.DRAFTED,
+        Actor.MENTOR,
+        mentor_id,
+        {"version": version},
+    )
+    return version
 
 
 @dataclass(frozen=True)
