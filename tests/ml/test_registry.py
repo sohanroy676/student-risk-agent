@@ -12,6 +12,7 @@ from app.ml.calibrate import CalibratedModel, fit_calibrated
 from app.ml.gate import Metrics, SignOff
 from app.ml.registry import (
     ALIAS,
+    NoProductionModel,
     Registry,
     metrics_from_json,
     metrics_to_json,
@@ -144,3 +145,39 @@ def test_release_cli_refuses_an_incomplete_sign_off(
     monkeypatch.setattr(sys, "argv", argv)
     with pytest.raises(ValueError, match="name and a reason"):
         release.main()
+
+
+def test_load_production_returns_the_aliased_version_and_predicts_identically(
+    tmp_path: Path, fitted: dict[int, CalibratedModel]
+) -> None:
+    registry = Registry(tmp_path)
+    release_of(registry, fitted, GOOD)
+    loaded = registry.load_production(8)
+    assert isinstance(loaded, CalibratedModel)
+    probe = pd.DataFrame({"a": [-2.0, 0.0, 2.0], "b": [1.0, 0.0, -1.0]})
+    np.testing.assert_array_equal(loaded.predict_proba(probe), fitted[8].predict_proba(probe))
+
+
+def test_load_production_follows_the_alias_not_the_latest_version(
+    tmp_path: Path, fitted: dict[int, CalibratedModel]
+) -> None:
+    registry = Registry(tmp_path)
+    first, _ = release_of(registry, fitted, GOOD)
+    _, passed = release_of(registry, fitted, Metrics(0.70, 0.02, GOOD.recall_gaps))
+    assert not passed
+    registry.load_production(4)
+    assert alias_version(registry, 4) == first[4]
+
+
+def test_load_production_without_an_alias_raises_a_clear_error(tmp_path: Path) -> None:
+    with pytest.raises(NoProductionModel, match="week 4"):
+        Registry(tmp_path).load_production(4)
+
+
+def test_load_production_for_a_week_not_in_the_release_raises(
+    tmp_path: Path, fitted: dict[int, CalibratedModel]
+) -> None:
+    registry = Registry(tmp_path)
+    release_of(registry, fitted, GOOD)
+    with pytest.raises(NoProductionModel, match="week 1"):
+        registry.load_production(1)
