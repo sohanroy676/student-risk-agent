@@ -205,6 +205,7 @@ def test_a_missing_production_model_fails_loudly_and_writes_nothing(
 BUDGET_S = 30 * 60
 
 
+@pytest.mark.slow
 def test_a_night_on_five_thousand_students_fits_the_thirty_minute_budget(
     engine: Engine, tmp_path: Path, registry: Registry, capsys: pytest.CaptureFixture[str]
 ) -> None:
