@@ -78,9 +78,11 @@
 - `feature/concerns-screen` merged to `main` (ab4e7b7), CI and Scale green
 - `feature/followup-escalations`: `/followups` and `/escalations`, shared `CaseList`, nav wrap fix, 17 Playwright tests. Web lint, prettier, typecheck and 66 Playwright tests pass (dev and production build); no Python changed
 
+- `feature/followup-escalations` merged to `main` (70518f5), CI and Scale green
+
 ## Next
 
-- Merge the admin API, tag `v0.4.0` (see activeContext)
+- Finish v0.5 (admin screens, department overview, audit screen, resources and settings if wanted, per-role Playwright flows, manual checks), then tag `v0.5.0`; details in activeContext
 
 ## Unverified (added)
 
