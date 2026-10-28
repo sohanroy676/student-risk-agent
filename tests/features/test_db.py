@@ -16,6 +16,7 @@ from data.synthetic import generator
 from data.synthetic.frames import to_frames
 
 TEST_DB = os.environ.get("TEST_DATABASE_URL")
+COHORT = 60  # enough for every assertion here; the 5,000-student test covers scale
 # Parents before children so foreign keys hold.
 LOAD_ORDER = (
     "terms",
@@ -57,7 +58,7 @@ def _alembic(*args: str) -> None:
 def loaded_db() -> Iterator[generator.SyntheticData]:
     assert TEST_DB is not None
     _alembic("upgrade", "head")
-    data = generator.generate(seed=3)
+    data = generator.generate(seed=3, n_students=COHORT)
     engine = create_engine(TEST_DB)
     try:
         frames = _frames(data)
@@ -77,7 +78,7 @@ def test_database_snapshot_matches_in_memory_snapshot(
 ) -> None:
     assert TEST_DB is not None
     as_of = generator.TERM_START + timedelta(weeks=8, days=2)
-    ids = list(range(1, generator.N_STUDENTS + 1))
+    ids = list(range(1, COHORT + 1))
     engine = create_engine(TEST_DB)
     try:
         with engine.connect() as conn:

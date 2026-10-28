@@ -51,6 +51,8 @@
 - `feature/core-apis`: `app/api/cases.py` (caseload, case detail, actions), `WrongActor`/`WrongState`, migration 0008 (`approved_by`/`approved_on`), contract and Postgres API tests incl. a p95 test. Local suite 723 passed, 160 skipped; its Postgres tests are first run by CI on `main` (merged before a branch CI run, by the user's choice)
 - `feature/core-apis` merged to `main` (f3a5785): 841 tests passed in CI (API p50 53 ms, p95 55 ms over 1,000 cases; 5,000-student night 159 s) but the run was cancelled by the 20-minute job limit before the secret scan
 - `chore/faster-ci` (includes `fix/ci-timeout`): CI split into parallel jobs (checks, three Postgres shards, scale, secrets), `postgres` and `slow` markers, `tests/test_ci_layout.py`. Local suite 727 passed, 160 skipped
+- `chore/faster-ci` merged to `main` (43f8d42), CI green in 7.6 min wall-clock (was 19-20)
+- `chore/faster-ci-2`: 60-student cohort in the database tests (they dominated the slow shard) and the 5,000-student test moved to its own `scale.yml` workflow. Local suite 727 passed, 160 skipped; the database tests are first run by CI
 - Order after this: admin API, then the `v0.4.0` tag; Moodle connector moved out of v0.4
 
 ## Next

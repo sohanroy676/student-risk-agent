@@ -31,10 +31,13 @@ def test_every_folder_with_a_database_test_is_in_a_ci_shard() -> None:
     assert not missing, f"add these folders to a database shard in ci.yml: {sorted(missing)}"
 
 
-def test_the_scale_test_has_its_own_job_and_the_others_exclude_it() -> None:
+def test_the_scale_test_has_its_own_workflow_and_the_shards_exclude_it() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
-    assert "marker: slow" in text
+    assert "marker: slow" not in text
     assert text.count("marker: postgres and not slow") >= 3
+    scale = (WORKFLOW.parent / "scale.yml").read_text(encoding="utf-8")
+    assert "-m slow" in scale and "timeout-minutes: 30" in scale
+    assert "push:" in scale and "schedule:" in scale  # on every main push and weekly
 
 
 def test_the_secret_scan_still_reads_the_full_history() -> None:

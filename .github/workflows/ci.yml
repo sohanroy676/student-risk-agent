@@ -4,8 +4,9 @@
 # The suite runs as parallel jobs so a run takes as long as its slowest job, not the sum:
 #   checks   - lint, format, types and every test that needs no database (no services)
 #   database - the Postgres tests, split into shards that each get their own Postgres
-#   scale    - the 5,000-student nightly run, on its own
 #   secrets  - gitleaks over the full history
+# The 5,000-student nightly run (the `slow` marker) is not here: scale.yml runs it on its own, so
+# its seven minutes do not hold up this result.
 # A database test is tagged `postgres` automatically (tests/conftest.py). Every folder that holds
 # one must be listed in a shard below; tests/test_ci_layout.py fails if one is missing.
 # Rebalance the shards from the `slowest 15 durations` printed at the end of each job.
@@ -76,9 +77,6 @@ jobs:
           - name: cases, api
             paths: tests/cases tests/api
             marker: postgres and not slow
-          - name: scale
-            paths: tests/jobs
-            marker: slow
 
     services:
       postgres:

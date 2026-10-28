@@ -24,6 +24,7 @@ pytestmark = pytest.mark.skipif(TEST_DB is None, reason="TEST_DATABASE_URL not s
 
 AS_OF = generator.TERM_START + timedelta(weeks=8, days=2)
 MENTORS = 10
+COHORT = 60  # enough for every assertion here; the 5,000-student test covers scale
 GOOD = Metrics(0.74, 0.02, {"gender": 0.03})
 
 
@@ -55,7 +56,7 @@ def engine() -> Iterator[Engine]:
 @pytest.fixture
 def csv_dir(tmp_path: Path) -> Path:
     folder = tmp_path / "erp"
-    generator.write_csv(generator.generate(seed=3), folder)
+    generator.write_csv(generator.generate(seed=3, n_students=COHORT), folder)
     return folder
 
 
@@ -97,8 +98,8 @@ def test_a_night_scores_everyone_opens_capped_cases_and_writes_reasons(
 
     assert summary.data_quality in ("ok", "warn") and summary.skipped is None
     assert summary.model_week == 8
-    assert summary.scored == generator.N_STUDENTS
-    assert _count(engine, "SELECT count(*) FROM app.risk_scores") == generator.N_STUDENTS
+    assert summary.scored == COHORT
+    assert _count(engine, "SELECT count(*) FROM app.risk_scores") == COHORT
     assert 0 < summary.opened <= 3 * MENTORS
     assert _count(engine, "SELECT count(*) FROM app.cases") == summary.opened
     assert (
@@ -125,14 +126,12 @@ def test_a_night_scores_everyone_opens_capped_cases_and_writes_reasons(
 def test_mentors_from_the_csv_feed_the_first_night_with_no_manual_step(
     engine: Engine, csv_dir: Path, registry: Registry
 ) -> None:
-    lines = ["student_id,mentor_id"] + [
-        f"{s},m{s % MENTORS}" for s in range(1, generator.N_STUDENTS + 1)
-    ]
+    lines = ["student_id,mentor_id"] + [f"{s},m{s % MENTORS}" for s in range(1, COHORT + 1)]
     (csv_dir / "mentor_assignments.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
     summary = _night(engine, csv_dir, registry)
     assert summary.unassigned == 0
     assert 0 < summary.opened <= 3 * MENTORS
-    assert _count(engine, "SELECT count(*) FROM app.mentor_assignments") == generator.N_STUDENTS
+    assert _count(engine, "SELECT count(*) FROM app.mentor_assignments") == COHORT
     assert _count(engine, "SELECT count(DISTINCT mentor_id) FROM app.cases") > 1
 
 
