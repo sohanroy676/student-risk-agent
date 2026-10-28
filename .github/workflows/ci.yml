@@ -4,6 +4,7 @@
 # The suite runs as parallel jobs so a run takes as long as its slowest job, not the sum:
 #   checks   - lint, format, types and every test that needs no database (no services)
 #   database - the Postgres tests, split into shards that each get their own Postgres
+#   web      - the web app: lint, formatting, types, build and the Playwright flows (API faked)
 #   secrets  - gitleaks over the full history
 # The 5,000-student nightly run (the `slow` marker) is not here: scale.yml runs it on its own, so
 # its seven minutes do not hold up this result.
@@ -124,6 +125,49 @@ jobs:
 
       - name: Database tests
         run: pytest ${{ matrix.paths }} -m "${{ matrix.marker }}" --durations=15
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npx prettier --check .
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Install the test browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser tests (they build the app first)
+        run: npx playwright test
+
+      - name: Keep the report if a test failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: web/playwright-report
+          retention-days: 7
 
   secrets:
     runs-on: ubuntu-latest

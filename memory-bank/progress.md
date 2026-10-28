@@ -66,6 +66,9 @@
 - `feature/case-drafts` merged to `main` (e5958a8), CI and Scale green
 - `feature/faculty-concerns`: migration 0010 (`app.concerns`), `app/api/concerns.py` (raise, list, acknowledge), contract and Postgres tests. Local suite 916 passed, 44 skipped; its Postgres tests are first run by CI
 
+- `feature/faculty-concerns` merged to `main` (d57a9b5), CI and Scale green
+- `feature/web-shell`: login (dev token), role-aware shell, caseload and case detail screens, `app/core/dev_token.py`, Playwright (18 tests, fake API), `web` CI job, ESLint config fixed. Local suite 930 passed, 44 skipped; web lint, prettier, typecheck and Playwright (dev and production build) pass
+
 ## Next
 
 - Merge the admin API, tag `v0.4.0` (see activeContext)
@@ -79,6 +82,5 @@
 ## Unverified
 
 - `docker compose up`
-- `cd web && npm run build`
 - `app/features/db.py` and `tests/features/test_db.py` (need Postgres; first run is CI)
 - `tests/jobs/test_nightly_postgres.py` and the `worker`/`beat` compose services (first run is CI / never)
