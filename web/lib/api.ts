@@ -4,6 +4,9 @@ import type {
   CaseDetail,
   CasePage,
   CaseState,
+  Concern,
+  ConcernCategory,
+  ConcernPage,
   GateResult,
   ModelCard,
   ModelRelease,
@@ -117,5 +120,34 @@ export function promoteRelease(
   return request<GateResult>(`/api/admin/models/${release}/promote`, {
     method: "POST",
     body: JSON.stringify(body),
+  });
+}
+
+export function loadConcerns(params: {
+  openOnly?: boolean;
+  limit?: number;
+  offset?: number;
+}): Promise<ConcernPage> {
+  const query = new URLSearchParams();
+  if (params.openOnly) query.set("open_only", "true");
+  query.set("limit", String(params.limit ?? 50));
+  query.set("offset", String(params.offset ?? 0));
+  return request<ConcernPage>(`/api/concerns?${query}`);
+}
+
+export function raiseConcern(body: {
+  student_id: number;
+  category: ConcernCategory;
+  note: string;
+}): Promise<{ id: number }> {
+  return request("/api/concerns", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function acknowledgeConcern(id: number): Promise<Concern> {
+  return request<Concern>(`/api/concerns/${id}/acknowledge`, {
+    method: "POST",
   });
 }

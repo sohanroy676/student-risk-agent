@@ -102,3 +102,31 @@ export interface ModelCard {
   release: number;
   markdown: string;
 }
+
+// Concerns (app/api/concerns.py). A note for people: no band, score or case is attached.
+
+export type ConcernCategory =
+  | "attendance"
+  | "performance"
+  | "wellbeing"
+  | "behaviour"
+  | "other";
+
+export interface Concern {
+  id: number;
+  student_id: number;
+  category: ConcernCategory;
+  raised_on: string;
+  note: string;
+  acknowledged: boolean;
+  raised_by: string | null; // mentor and staff only
+  acknowledged_by: string | null; // mentor and staff only
+  acknowledged_on: string | null;
+}
+
+export interface ConcernPage {
+  items: Concern[];
+  total: number;
+  limit: number;
+  offset: number;
+}

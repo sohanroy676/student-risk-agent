@@ -172,16 +172,14 @@ test.describe("other roles", () => {
     ).toHaveCount(0);
   });
 
-  test("faculty are offered no case screens and the app never asks the API for cases", async ({
+  test("faculty land on concerns, are offered no case screens and never cause a case request", async ({
     page,
   }) => {
     const api = new FakeApi([makeCase(1)], "mentor");
     await api.install(page);
     await signIn(page, "faculty", "f1");
     await page.goto("/");
-    await expect(
-      page.getByText("There are no screens for your role yet."),
-    ).toBeVisible();
+    await expect(page).toHaveURL(/\/concerns$/);
     await expect(page.getByRole("link", { name: "Caseload" })).toHaveCount(0);
     for (const path of ["/caseload", "/cases/1"]) {
       await page.goto(path);
@@ -189,7 +187,9 @@ test.describe("other roles", () => {
         page.getByText("This screen is not available for your role."),
       ).toBeVisible();
     }
-    expect(api.requests).toHaveLength(0);
+    expect(
+      api.requests.filter((r) => r.path.startsWith("/api/case")),
+    ).toHaveLength(0);
   });
 });
 
