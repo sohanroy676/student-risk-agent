@@ -109,7 +109,8 @@ const OPEN: CaseState[] = [
 
 export class FakeApi {
   readonly requests: Recorded[] = [];
-  private failure: { status: number; detail: unknown } | null = null;
+  private failure: { status: number; detail: unknown; left: number } | null =
+    null;
   /** The model registry the admin screens read; set it in a test that needs one. */
   releases: ModelRelease[] = [];
   /** The concerns the signed-in role may see (the real API narrows them by row security). */
@@ -120,9 +121,13 @@ export class FakeApi {
     private readonly role: Role = "mentor",
   ) {}
 
-  /** The next request that reaches the API gets this error instead of an answer. */
-  failNext(status: number, detail: unknown): void {
-    this.failure = { status, detail };
+  /**
+   * The next `times` requests that reach the API get this error instead of an answer. A page
+   * that loads data in an effect asks twice under the dev server (React Strict Mode), so a test
+   * that must see the error on load passes 2.
+   */
+  failNext(status: number, detail: unknown, times = 1): void {
+    this.failure = { status, detail, left: times };
   }
 
   calls(method: string, pathPrefix: string): Recorded[] {
@@ -153,11 +158,17 @@ export class FakeApi {
 
     if (this.failure) {
       const { status, detail } = this.failure;
-      this.failure = null;
+      this.failure =
+        this.failure.left > 1
+          ? { ...this.failure, left: this.failure.left - 1 }
+          : null;
       return this.reply(route, status, { detail });
     }
     if (request.method() === "GET" && path === "/api/caseload") {
-      const items = this.cases.filter((c) => OPEN.includes(c.state));
+      const wanted = url.searchParams.get("state");
+      const items = this.cases.filter((c) =>
+        wanted ? c.state === wanted : OPEN.includes(c.state),
+      );
       return this.reply(route, 200, {
         items,
         total: items.length,
@@ -199,6 +210,13 @@ export class FakeApi {
         found.approved_on = "2026-03-03";
       } else if (action === "dismiss") {
         found.state = "dismissed";
+      } else if (action === "continue" && found.state === "in_review") {
+        found.state = "monitoring";
+        found.cycle += 1;
+      } else if (action === "resolve") {
+        found.state = "resolved";
+      } else if (action === "escalate") {
+        found.state = "escalated";
       }
       return this.reply(route, 200, { id: found.id, state: found.state });
     }
