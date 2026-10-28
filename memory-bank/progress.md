@@ -26,6 +26,7 @@
 
 - v0.3 started, one branch per item (nothing pushed):
   - `feature/calibrated-lgbm`: `PRODUCTION = "lgbm"`, `app/ml/calibrate.py` (isotonic on the latest training presentation, model fitted on earlier ones; `ece`, `precision_at_top`, `evaluate_calibrated`), report CLI merges the calibrated columns. Real OULAD test: ECE 0.040 / 0.035 / 0.020 / 0.017 / 0.017 for wk1/2/4/6/8 (target 0.05 met); top-10% lift 1.50 / 1.63 / 1.75 / 1.84 / 1.99 (target 2.0 NOT met). Calibrated AUC 0.667 / 0.670 / 0.701 / 0.736 / 0.770, below uncalibrated LightGBM because the model sees only 2013B. Next: `feature/shap-reasons`, `feature/fairness-report`, `feature/model-registry-gate`
+  - `feature/shap-reasons` (stacked on `feature/calibrated-lgbm`): `app/ml/explain.py` (exact TreeSHAP via LightGBM `pred_contrib`, no `shap` dependency; `top_reasons` = up to 3 positive-contribution features with a value), `app/ml/reasons.py` (one value-only template per feature, import fails if `FEATURE_NAMES` and templates differ). `fact_id` = `ref/feature/as_of`. Tests check every rendered number against the value (parametrised plus Hypothesis); full suite passes
 
 ## Next
 

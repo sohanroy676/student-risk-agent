@@ -25,7 +25,8 @@ v0.2 "Data and baseline model" code is complete and merged to `main`: loaders, `
 ## v0.3 status (2026-10-28)
 - `feature/calibrated-lgbm` done, not pushed. ECE target met every week. Lift target restated by the user's go-ahead (2026-10-28): top-10% precision >= min(2x base rate, 0.70); the 0.70 cap applies on OULAD (base rate 42-48%, plain 2x is unreachable, best lift 1.99) and all five weeks pass it (0.72-0.83). Set after seeing results; the college's ~10% base rate keeps the stricter 2x rule.
 - Calibrated model is fitted on 2013B only (2013J is the validation set), costing 0.01-0.03 AUC versus plain LightGBM. Gate on week-4 AUC should compare calibrated candidates with each other.
-- Remaining v0.3 branches: `feature/shap-reasons`, `feature/fairness-report`, `feature/model-registry-gate`.
+- `feature/shap-reasons` done, not pushed (stacked on the calibrated branch). Manual review of 10 real week-4 OULAD students: reasons are true but only describe values, never direction, so a low-risk student gets reasons such as "90 quiz interactions so far". Reasons should be shown only for flagged cases (decide the band cut-off in v0.4) and templates may need direction wording after mentor feedback. Isotonic plateaus give many students the same probability (e.g. 0.50).
+- Remaining v0.3 branches: `feature/fairness-report`, `feature/model-registry-gate`.
 
 ## Next step
 Review and merge the stacked v0.2 branches plus `feature/lightgbm-compare` and `fix/drop-activity-features` (merge summary given in chat). Then v0.3 "Model and explanations" per `docs/DETAILED_ROADMAP.md` (LightGBM is already available via `app/ml/baseline.py` `MODELS`). Real OULAD test AUC, logreg / LightGBM: wk1 0.680 / 0.683, wk2 0.677 / 0.681, wk4 0.719 / 0.740, wk6 0.748 / 0.772, wk8 0.779 / 0.798. Per-activity-type click features and assessment weights were tried and dropped (no gain; activity features reverted in `b066aae`). Demographics must not be added.
