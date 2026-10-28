@@ -80,6 +80,11 @@ v0.3 "Model and explanations" is merged to `main` (PR #3) and tagged `v0.3.0`; C
 - No unassign endpoint (a student with no mentor gets no case). Reasons stay visible to mentor and staff only; admin gets none (confirmed).
 - `tests/api/conftest.py` shares the `api` and `pems` fixtures; the new database tests are in the existing `cases, api` shard. `.gitleaksignore` got one more narrow fingerprint (roadmap prose, commit 839ab07).
 
+## Fairness audit on the red band (2026-10-28)
+- The audit and gate now flag the red band: calibrated probability >= `CaseConfig.red_enter` (0.50), one cut-off, no hysteresis, no per-mentor cap, amber not audited (`choose_flags`, `flag_at`, `fairness_from_flags` in `app/ml/fairness.py`). `--flag-fraction` keeps the old top-share rule. The card heading and MLflow param `flag_rule` state the rule and the share flagged.
+- Real OULAD week 4: the red band flags 51% of the test cohort (base rate is about 45%), so 0.50 is barely selective there and the audit says little about the college (about 10% base rate). Recall gaps: gender 0.024, region 0.135, highest_education 0.146, imd_band 0.066, age_band 0.054, disability 0.026 (limit 0.10). Gate: BLOCKED on `gap_high:region` and `gap_high:highest_education`; the age, IMD and disability gaps no longer block. No sign-off given; the model is not promoted.
+- Re-run this audit on the college's own data once it exists, where the red band flags far fewer students and groups may fall below the reliability floor (100 students, 20 positives).
+
 ## Next step
 Merge `feature/admin-api` (branch CI green, run 40691561309), check both workflows on `main`, then tag `v0.4.0` (ask first). After v0.4: fairness audit and gate re-run on the red band, before the v0.5 models and fairness screen.
 Open: re-run the fairness audit and gate on the red band (own branch); the manual v0.3 checks (read a model card, reasons for 10 students); optional pytest-xdist to trim `checks`. Demographics must not be added as features.
