@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     app_timezone: str = "UTC"
     csv_dir: str = ""
     model_store: str = "mlruns"
+    jwt_issuer: str = ""
+    jwt_audience: str = ""
+    jwt_public_key: str = ""
+    jwt_jwks_url: str = ""
+    jwt_roles_claim: str = "roles"
 
 
 def get_settings() -> Settings:
