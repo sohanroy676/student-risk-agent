@@ -122,6 +122,13 @@ v0.3 "Model and explanations" is merged to `main` (PR #3) and tagged `v0.3.0`; C
 - Playwright (`@playwright/test` 1.55.0, Chromium): 18 tests in `web/e2e/` against a fake API at the network layer (`e2e/fake-api.ts`), so no backend or database. They cover sign-in/out, expired and role-less tokens, 401, the mentor approve flow, refused moves, hostile text, roles, and no sideways scroll at 375 px. CI builds and starts the app first. A new `web` CI job runs lint, prettier, typecheck and these tests (`tests/test_ci_layout.py` checks the job exists).
 - The fake API is a stand-in: a real mentor end-to-end run against the API and Postgres is still manual (Docker needed) and listed under Unverified.
 
+## v0.5 models screen decisions (2026-10-28)
+- `feature/web-shell` is merged to `main` (123bc1d), CI and Scale green.
+- `/models` (list) and `/models/[release]` (detail), admin only; the Models link shows for admin only and other roles get "not available for your role" with no request to the API.
+- The detail page shows the aggregates the API returns (week-4 AUC, calibration error, recall gap per attribute against the 0.10 limit, "Not assessed" for null), the gate's blocks in plain words (`web/lib/models.ts`), and the model card as plain text inside a `<details>` (never rendered as HTML).
+- Promotion in the UI: a release that passes gets one button. A blocked release gets a form where every block must be ticked and a reason (not just spaces) given before the button enables; it sends `{reason, covers}`, and the sign-off is recorded in the signed-in admin's name by the API. A release with a hard failure (missing or unassessed numbers) gets no form at all. A 409 from the gate is shown as "the gate still blocks this release: <codes>".
+- 16 more Playwright tests (34 in all, dev and production build) with a fake registry in `e2e/fake-api.ts`; the real registry and gate are covered by the Python tests. No Python changed in this branch.
+
 ## Next step
 Merge `feature/admin-api` (branch CI green, run 40691561309), check both workflows on `main`, then tag `v0.4.0` (ask first). After v0.4: fairness audit and gate re-run on the red band, before the v0.5 models and fairness screen.
 Open: re-run the fairness audit and gate on the red band (own branch); the manual v0.3 checks (read a model card, reasons for 10 students); optional pytest-xdist to trim `checks`. Demographics must not be added as features.

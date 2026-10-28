@@ -69,6 +69,9 @@
 - `feature/faculty-concerns` merged to `main` (d57a9b5), CI and Scale green
 - `feature/web-shell`: login (dev token), role-aware shell, caseload and case detail screens, `app/core/dev_token.py`, Playwright (18 tests, fake API), `web` CI job, ESLint config fixed. Local suite 930 passed, 44 skipped; web lint, prettier, typecheck and Playwright (dev and production build) pass
 
+- `feature/web-shell` merged to `main` (123bc1d), CI and Scale green
+- `feature/models-screen`: `/models` and `/models/[release]` (metrics, fairness table, gate blocks, sign-off form, model card), 16 Playwright tests. Web lint, prettier, typecheck and 34 Playwright tests pass (dev and production build)
+
 ## Next
 
 - Merge the admin API, tag `v0.4.0` (see activeContext)
