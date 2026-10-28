@@ -136,6 +136,13 @@ v0.3 "Model and explanations" is merged to `main` (PR #3) and tagged `v0.3.0`; C
 - Notes are rendered as text only (tested with hostile HTML). The server's errors (unknown student, daily limit of 20) are shown as written.
 - 15 more Playwright tests (49 in all, dev and production build); the "faculty have no screens" test became "faculty land on concerns, see no case screens and cause no case request".
 
+## v0.5 follow-up and escalation screens (2026-10-28)
+- `feature/concerns-screen` is merged to `main` (ab4e7b7), CI and Scale green.
+- `/followups` (state `in_review`) and `/escalations` (state `escalated`) for mentor, staff and admin (faculty: not available, no request). Both use the shared `web/components/CaseList.tsx` (also behind `/caseload`) and the existing caseload API with its `state` filter, so no Python changed. Actions still happen on the case page (`/cases/[id]`): the review offers Continue / Resolve / Escalate to the mentor and Resolve / Escalate to staff; an escalated case offers Resolve only. The pages say plainly that a person, not the system, decides.
+- The phone-width tests caught a real bug: five nav links overflowed the header at 375 px; `.bar nav` now wraps.
+- Dev server note for tests: a page that loads in an effect fetches twice under React Strict Mode, so `FakeApi.failNext(status, detail, times)` takes a count; a test that must see the error on load passes 2.
+- 17 more Playwright tests (66 in all, dev and production build).
+
 ## Next step
 Merge `feature/admin-api` (branch CI green, run 40691561309), check both workflows on `main`, then tag `v0.4.0` (ask first). After v0.4: fairness audit and gate re-run on the red band, before the v0.5 models and fairness screen.
 Open: re-run the fairness audit and gate on the red band (own branch); the manual v0.3 checks (read a model card, reasons for 10 students); optional pytest-xdist to trim `checks`. Demographics must not be added as features.

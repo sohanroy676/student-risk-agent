@@ -18,6 +18,16 @@ interface NavItem {
 const NAV: NavItem[] = [
   { href: "/caseload", label: "Caseload", roles: ["mentor", "staff", "admin"] },
   {
+    href: "/followups",
+    label: "Follow-ups",
+    roles: ["mentor", "staff", "admin"],
+  },
+  {
+    href: "/escalations",
+    label: "Escalations",
+    roles: ["mentor", "staff", "admin"],
+  },
+  {
     href: "/concerns",
     label: "Concerns",
     roles: ["faculty", "mentor", "staff"],

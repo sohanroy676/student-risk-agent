@@ -75,6 +75,9 @@
 - `feature/models-screen` merged to `main` (e147e73), CI and Scale green
 - `feature/concerns-screen`: `/concerns` (faculty raise form and own list; mentor and staff list with acknowledge), 15 Playwright tests. Web lint, prettier, typecheck and 49 Playwright tests pass (dev and production build); no Python changed
 
+- `feature/concerns-screen` merged to `main` (ab4e7b7), CI and Scale green
+- `feature/followup-escalations`: `/followups` and `/escalations`, shared `CaseList`, nav wrap fix, 17 Playwright tests. Web lint, prettier, typecheck and 66 Playwright tests pass (dev and production build); no Python changed
+
 ## Next
 
 - Merge the admin API, tag `v0.4.0` (see activeContext)
