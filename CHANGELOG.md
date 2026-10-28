@@ -10,10 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add CSV connector and data-quality report
+- Add case engine with bands, states, timers and rate limits
 
 ### Changed
 
 - Record v0.3 merge and set up v0.4
+- Regenerate changelog with v0.4 ingest entry
+
+### Fixed
+
+- Drop duplicate LMS events when loading the DB test fixture
 
 ## [0.3.0] - 2026-10-28
 
