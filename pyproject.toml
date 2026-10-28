@@ -27,5 +27,5 @@ addopts = "-ra"
 pythonpath = ["."]
 
 [[tool.mypy.overrides]]
-module = ["sklearn.*", "fairlearn.*"]
+module = ["sklearn.*", "fairlearn.*", "celery.*", "kombu.*"]
 ignore_missing_imports = true

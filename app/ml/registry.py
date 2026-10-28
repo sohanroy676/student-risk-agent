@@ -23,6 +23,10 @@ GATE_WEEK = 4
 EXPERIMENT = "risk-model"
 
 
+class NoProductionModel(LookupError):
+    """No model holds the production alias for the requested week."""
+
+
 def model_name(week: int) -> str:
     return f"{MODEL_PREFIX}{week}"
 
@@ -80,6 +84,18 @@ class Registry:
         if text is None:
             raise ValueError("the production model has no recorded metrics; cannot run the gate")
         return metrics_from_json(text)
+
+    def load_production(self, week: int) -> CalibratedModel:
+        """The calibrated model now holding the production alias for `week`."""
+        name = model_name(week)
+        try:
+            version = self.client.get_model_version_by_alias(name, ALIAS)
+        except mlflow.exceptions.MlflowException as error:
+            raise NoProductionModel(f"no '{ALIAS}' model for week {week}") from error
+        loaded = mlflow.sklearn.load_model(f"models:/{name}/{version.version}")
+        if not isinstance(loaded, CalibratedModel):
+            raise TypeError(f"{name} v{version.version} is not a CalibratedModel")
+        return loaded
 
     def log_release(
         self,

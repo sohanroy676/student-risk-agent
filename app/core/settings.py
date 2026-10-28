@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     database_url: str = ""
     redis_url: str = ""
     app_env: str = "dev"
+    app_timezone: str = "UTC"
+    csv_dir: str = ""
+    model_store: str = "mlruns"
 
 
 def get_settings() -> Settings:

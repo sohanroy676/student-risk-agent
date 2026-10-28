@@ -146,3 +146,30 @@ def test_protected_attributes_only_in_attribute_table(data: g.SyntheticData) -> 
     for name, table in data.tables.items():
         if name != "student_attributes":
             assert not {"gender", "category"} & set(table.columns), name
+
+
+@pytest.mark.parametrize("n", [1, 50, 1000])
+def test_n_students_sets_the_cohort_size_and_keeps_every_table_consistent(n: int) -> None:
+    data = g.generate(seed=5, n_students=n)
+    ids = {row[0] for row in data.tables["students"].rows}
+    assert ids == set(range(1, n + 1))
+    assert len(data.tables["enrollments"].rows) == n * g.N_COURSES
+    assert len(data.tables["marks"].rows) == n * g.N_COURSES * len(g.ASSESSMENT_WEEKS)
+    assert len(data.tables["fees"].rows) == n * g.N_FEE_INSTALMENTS
+    assert len(data.tables["student_attributes"].rows) == n
+    assert data.struggling_ids <= ids
+    assert len(data.struggling_ids) == round(n * g.STRUGGLING_SHARE)
+    for name in ("attendance", "marks", "fees", "lms_events"):
+        assert set(_col(data, name, "student_id")) <= ids
+
+
+def test_the_default_cohort_is_unchanged_by_the_parameter(data: g.SyntheticData) -> None:
+    again = g.generate(seed=42, n_students=g.N_STUDENTS)
+    assert again.tables["marks"].rows == data.tables["marks"].rows
+    assert again.struggling_ids == data.struggling_ids
+
+
+@pytest.mark.parametrize("n", [0, -3])
+def test_a_cohort_without_students_is_refused(n: int) -> None:
+    with pytest.raises(ValueError, match="n_students"):
+        g.generate(n_students=n)
