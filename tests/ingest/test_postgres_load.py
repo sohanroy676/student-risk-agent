@@ -14,6 +14,7 @@ from data.synthetic import generator
 
 TEST_DB = os.environ.get("TEST_DATABASE_URL")
 RUN = date(2026, 4, 20)
+COHORT = 60  # enough for every assertion here; the 5,000-student test covers scale
 
 pytestmark = pytest.mark.skipif(TEST_DB is None, reason="TEST_DATABASE_URL not set")
 
@@ -55,7 +56,7 @@ def _counts(url: str) -> dict[str, int]:
 
 
 def test_loading_the_same_files_twice_changes_nothing(empty_db: str, tmp_path: Path) -> None:
-    data = generator.generate(seed=3)
+    data = generator.generate(seed=3, n_students=COHORT)
     generator.write_csv(data, tmp_path)
     first = ingest_csv_dir(empty_db, tmp_path, RUN)
     after_first = _counts(empty_db)
@@ -75,7 +76,7 @@ def test_loading_the_same_files_twice_changes_nothing(empty_db: str, tmp_path: P
 
 
 def test_a_corrected_value_updates_in_place(empty_db: str, tmp_path: Path) -> None:
-    generator.write_csv(generator.generate(seed=3), tmp_path)
+    generator.write_csv(generator.generate(seed=3, n_students=COHORT), tmp_path)
     ingest_csv_dir(empty_db, tmp_path, RUN)
     path = tmp_path / "courses.csv"
     path.write_text(path.read_text().replace("Course 1", "Renamed"), encoding="utf-8")
@@ -95,7 +96,7 @@ def test_a_corrected_value_updates_in_place(empty_db: str, tmp_path: Path) -> No
 
 
 def test_a_failing_night_stores_raw_and_report_but_not_core(empty_db: str, tmp_path: Path) -> None:
-    generator.write_csv(generator.generate(seed=3), tmp_path)
+    generator.write_csv(generator.generate(seed=3, n_students=COHORT), tmp_path)
     (tmp_path / "attendance.csv").write_text("student_id,course_id,class_date,present\n")
     report = ingest_csv_dir(empty_db, tmp_path, RUN)
     assert report.status == "fail"
@@ -133,7 +134,7 @@ def _write_mentors(folder: Path, rows: dict[int, str]) -> None:
 def test_mentor_assignments_load_and_reloading_changes_nothing(
     empty_db: str, tmp_path: Path
 ) -> None:
-    generator.write_csv(generator.generate(seed=3), tmp_path)
+    generator.write_csv(generator.generate(seed=3, n_students=COHORT), tmp_path)
     _write_mentors(tmp_path, {1: "m1", 2: "m1", 3: "m2"})
     assert ingest_csv_dir(empty_db, tmp_path, RUN).status == "ok"
     mentors = "SELECT student_id, mentor_id FROM app.mentor_assignments ORDER BY 1"
@@ -150,7 +151,7 @@ def test_mentor_assignments_load_and_reloading_changes_nothing(
 def test_reassigning_a_student_updates_the_mentor_and_is_audited(
     empty_db: str, tmp_path: Path
 ) -> None:
-    generator.write_csv(generator.generate(seed=3), tmp_path)
+    generator.write_csv(generator.generate(seed=3, n_students=COHORT), tmp_path)
     _write_mentors(tmp_path, {1: "m1", 2: "m1"})
     ingest_csv_dir(empty_db, tmp_path, RUN)
     _write_mentors(tmp_path, {1: "m2", 2: "m1", 3: "m3"})
@@ -169,7 +170,7 @@ def test_reassigning_a_student_updates_the_mentor_and_is_audited(
 def test_a_file_that_omits_a_student_leaves_their_assignment_alone(
     empty_db: str, tmp_path: Path
 ) -> None:
-    generator.write_csv(generator.generate(seed=3), tmp_path)
+    generator.write_csv(generator.generate(seed=3, n_students=COHORT), tmp_path)
     _write_mentors(tmp_path, {1: "m1", 2: "m1"})
     ingest_csv_dir(empty_db, tmp_path, RUN)
     _write_mentors(tmp_path, {2: "m2"})
@@ -179,7 +180,7 @@ def test_a_file_that_omits_a_student_leaves_their_assignment_alone(
 
 
 def test_a_failing_night_changes_no_assignment(empty_db: str, tmp_path: Path) -> None:
-    generator.write_csv(generator.generate(seed=3), tmp_path)
+    generator.write_csv(generator.generate(seed=3, n_students=COHORT), tmp_path)
     _write_mentors(tmp_path, {1: "m1"})
     ingest_csv_dir(empty_db, tmp_path, RUN)
     _write_mentors(tmp_path, {1: "m9"})
