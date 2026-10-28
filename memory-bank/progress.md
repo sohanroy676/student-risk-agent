@@ -63,6 +63,9 @@
 - `feature/models-api` merged to `main` (a59b142), CI and Scale green
 - `feature/case-drafts`: migration 0009 (`app.case_drafts`), `app/cases/drafts.py`, `draft_new_cases` and `edit_draft` in `app/cases/store.py`, nightly step, `PUT /api/cases/{id}/draft` and `draft` in case detail. Local suite 873 passed, 42 skipped; its Postgres tests are first run by CI
 
+- `feature/case-drafts` merged to `main` (e5958a8), CI and Scale green
+- `feature/faculty-concerns`: migration 0010 (`app.concerns`), `app/api/concerns.py` (raise, list, acknowledge), contract and Postgres tests. Local suite 916 passed, 44 skipped; its Postgres tests are first run by CI
+
 ## Next
 
 - Merge the admin API, tag `v0.4.0` (see activeContext)

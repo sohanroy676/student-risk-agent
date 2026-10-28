@@ -100,6 +100,16 @@ v0.3 "Model and explanations" is merged to `main` (PR #3) and tagged `v0.3.0`; C
 - `PUT /api/cases/{id}/draft` (`{message}`, extra fields refused): the case's own mentor only (staff and admin 403, another mentor's case is a 404), only while the case is `drafted` (409 otherwise; approval freezes the text), 422 for an invalid message. Saving identical wording adds nothing. An edit writes event and audit entry `draft_edited` with the version number only, never the wording. Case detail returns the latest `draft` to mentor and staff (null for admin).
 - Postgres tests for all of this (in `tests/cases/test_store.py`, `tests/api/test_cases_postgres.py`, `tests/jobs/test_nightly_postgres.py`) have only run in CI.
 
+## v0.5 faculty concerns decisions (2026-10-28)
+- `feature/case-drafts` is merged to `main` (e5958a8), CI and Scale green.
+- Migration 0010 `app.concerns` (student_id, raised_by, raised_on, category `attendance|performance|wellbeing|behaviour|other`, note up to 500 chars, acknowledged_by/on set together). A concern is a note for people: it opens no case, touches no band and decides nothing.
+- `app/api/concerns.py`: `POST /api/concerns` (faculty only; `{student_id, category, note?}`, extra fields refused, 404 for an unknown student, 429 after 20 a day per faculty member), `GET /api/concerns` (faculty: own; mentor: their mentees' (read from `app.mentor_assignments`, so reassignment moves them); staff: all; admin: 403; filters `student_id`, `open_only`, paging, newest first), `POST /api/concerns/{id}/acknowledge` (mentor of that student or staff; 404 if hidden, 409 if already acknowledged).
+- Row-level security repeats those rules; the API role can only SELECT and INSERT, and UPDATE only the two acknowledgement columns; nobody can delete. Faculty see `acknowledged` (yes/no) but not who raised or acknowledged; mentor and staff see `raised_by`, `acknowledged_by`, `acknowledged_on`. No response carries a band, score, state or case.
+- The note is free text, so it never enters the audit log: entries `concern.raised` and `concern.acknowledged` (subject `concern-<id>`) carry the category only.
+- There is no faculty-to-student teaching link in the data, so any faculty member can raise a concern about any student id; a 404 on an unknown id lets a faculty member test whether an id exists (accepted; the daily cap limits it). Add a section or teaching link check when the college data has one.
+- Contract test change: faculty now reach `POST` and `GET /api/concerns` (`FACULTY_ROUTES`); every other route still gives them 403 before any data is read.
+- Postgres tests (`tests/api/test_concerns_postgres.py`) have only run in CI.
+
 ## Next step
 Merge `feature/admin-api` (branch CI green, run 40691561309), check both workflows on `main`, then tag `v0.4.0` (ask first). After v0.4: fairness audit and gate re-run on the red band, before the v0.5 models and fairness screen.
 Open: re-run the fairness audit and gate on the red band (own branch); the manual v0.3 checks (read a model card, reasons for 10 students); optional pytest-xdist to trim `checks`. Demographics must not be added as features.
