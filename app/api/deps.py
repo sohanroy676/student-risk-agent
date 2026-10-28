@@ -7,8 +7,10 @@ authenticated caller is recorded in the audit log (role and route template only)
 
 import logging
 from collections.abc import Callable, Iterator
+from datetime import date, datetime
 from functools import lru_cache
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -76,7 +78,8 @@ def _route_template(request: Request) -> str:
     return str(getattr(route, "path", "unknown"))
 
 
-def _denied(recorder: Denial, request: Request, subject: str | None, role: str) -> HTTPException:
+def denied(recorder: Denial, request: Request, subject: str | None, role: str) -> HTTPException:
+    """The 403 to raise for an authenticated caller, after recording the denial."""
     if subject is not None:
         try:
             recorder(subject, role, request.method, _route_template(request))
@@ -100,7 +103,7 @@ def current_principal(
             401, "invalid or missing token", headers={"WWW-Authenticate": "Bearer"}
         ) from error
     except Forbidden as error:
-        raise _denied(recorder, request, error.subject, "none") from error
+        raise denied(recorder, request, error.subject, "none") from error
 
 
 def require_roles(*roles: Role) -> Callable[..., Principal]:
@@ -114,7 +117,7 @@ def require_roles(*roles: Role) -> Callable[..., Principal]:
         try:
             allow(principal, roles)
         except Forbidden as error:
-            raise _denied(recorder, request, principal.subject, principal.role.value) from error
+            raise denied(recorder, request, principal.subject, principal.role.value) from error
         return principal
 
     return dependency
@@ -126,3 +129,8 @@ def get_conn(principal: Annotated[Principal, Depends(current_principal)]) -> Ite
     with get_engine().begin() as conn:
         scope_to_principal(conn, principal.subject, principal.role.value)
         yield conn
+
+
+def get_today() -> date:
+    """The college's calendar date (`APP_TIMEZONE`), not the server's."""
+    return datetime.now(ZoneInfo(get_settings().app_timezone)).date()
