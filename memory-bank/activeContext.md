@@ -41,4 +41,5 @@ v0.3 "Model and explanations" is merged to `main` (PR #3) and tagged `v0.3.0`; C
 - Hypothesis found that `unassigned` order depended on input order; now sorted.
 
 ## Next step
-Merge `feature/case-engine` after CI confirms the Postgres tests (push the branch first, or merge and watch CI; ask). Then `feature/nightly-pipeline`: Celery task chaining ingest, `build_snapshot`, the registry `production` alias (needs a model loader in `registry.py`), scoring, `run_night`, `run_timers`. The fairness audit and gate still need re-running on the red band (decision 1). Demographics must not be added as features.
+`feature/nightly-pipeline` (case engine merged, `main` at 7cef506, CI green): Celery task chaining CSV ingest, `load_core_tables` + `build_snapshot` (as_of = today), scoring with the registry `production` alias (add a model loader to `registry.py` first), `run_night`, `run_timers`; 5,000 students in under 30 minutes. Push the branch and dispatch CI before merging (no local Postgres). Then audit chain, core APIs, JWT auth + RBAC/RLS, Moodle (deferred); tag `v0.4.0` last.
+Open: re-run the fairness audit and gate on the red band (decision 1); nothing fills `app.mentor_assignments` yet. Demographics must not be added as features.

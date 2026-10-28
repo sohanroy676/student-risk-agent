@@ -1,7 +1,7 @@
 # Roadmap
 
 ## Now
-- v0.4 Backend and integration, in progress: CSV connector and data-quality report merged; case engine done on `feature/case-engine` (awaiting review)
+- v0.4 Backend and integration, in progress: CSV connector and data-quality report merged; case engine merged; nightly pipeline is next
 
 ## Next
 - v0.4 remaining: nightly Celery pipeline, core APIs, audit log, JWT/OIDC auth with RBAC and row-level security, Moodle connector (deferred)
