@@ -143,6 +143,16 @@ v0.3 "Model and explanations" is merged to `main` (PR #3) and tagged `v0.3.0`; C
 - Dev server note for tests: a page that loads in an effect fetches twice under React Strict Mode, so `FakeApi.failNext(status, detail, times)` takes a count; a test that must see the error on load passes 2.
 - 17 more Playwright tests (66 in all, dev and production build).
 
-## Next step
-Merge `feature/admin-api` (branch CI green, run 40691561309), check both workflows on `main`, then tag `v0.4.0` (ask first). After v0.4: fairness audit and gate re-run on the red band, before the v0.5 models and fairness screen.
-Open: re-run the fairness audit and gate on the red band (own branch); the manual v0.3 checks (read a model card, reasons for 10 students); optional pytest-xdist to trim `checks`. Demographics must not be added as features.
+## Next step (written 2026-10-28, end of session)
+State: `main` is at 70518f5 (merge of `feature/followup-escalations`), CI and Scale green. `v0.4.0` is tagged. v0.5 "Dashboard" is in progress; merged so far: models API, case drafts, faculty concerns API, web shell, models screen, concerns screen, follow-up and escalation screens. The branches `feature/*` listed in progress.md are all merged; old ones still exist (ask before deleting).
+
+Remaining in v0.5, in the agreed order, one branch each:
+1. Admin screens: mentor assignment (API `PUT /api/admin/mentor-assignments/{student_id}` exists) and the last nightly run (`GET /api/admin/nightly/latest`). Screens only.
+2. Department overview: needs a new staff/admin aggregate endpoint (counts by state, band and mentor, overdue and unassigned; counts only, no scores, no names) plus a screen.
+3. Audit screen: needs a new admin-only endpoint that lists audit entries (whitelisted fields only; never `detail` free text) plus the existing verify check, plus a screen.
+4. Resources and settings: NOT DEFINED in the roadmap and the user has not answered. My guess: resources = referral contacts (counselling, financial aid) that mentors read and admin edits; settings = case thresholds and timers read-only. Ask before building; leaving it out of v0.5 is an option.
+5. Final pass: one Playwright flow per role, the manual checks (a mentor completes a review in under a minute; laptop and phone layout), then tag `v0.5.0` (ask first).
+
+Open items carried over: real OIDC sign-in (the web sign-in is a dev token); a real end-to-end run against the API and Postgres (needs Docker); `docker compose up`, Dockerfile `libgomp1` and the web image are unverified; `npm audit` shows 3 findings in `next`/`sharp` (no `next/image` used; fix needs a `next` bump outside the pinned range, decide when); manual v0.3 checks (read a model card, reasons for 10 students); optional pytest-xdist; the red-band fairness audit should be re-run on the college's own data; faculty enter student IDs by hand until the data has a teacher-to-student link. Demographics must not be added as features.
+
+Working rules for the next session: no GitHub PRs; merge locally, push `main`, check BOTH workflows (`gh run list --branch main`); ask before any merge, push or tag with a plain-English summary; never commit to `main`; leave the uncommitted `.claude/settings.json` change alone; test a branch with `gh workflow run ci.yml --ref <branch>`; docs go in a docs commit on the branch before the merge; use Write/Edit or a script file for edits (long heredocs fail here); run ruff format, ruff check, mypy and `pytest -m "not postgres"` before each Python commit and `npm run lint`, `npx prettier --check .`, `npx tsc --noEmit` and `npx playwright test` (also `CI=1` for the production build) before each web commit. Web files can show as modified only by line endings after prettier; add files by explicit path.
