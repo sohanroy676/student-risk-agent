@@ -17,6 +17,11 @@ interface NavItem {
 // Only screens that exist are listed; each is also protected by the API, not just hidden here.
 const NAV: NavItem[] = [
   { href: "/caseload", label: "Caseload", roles: ["mentor", "staff", "admin"] },
+  {
+    href: "/concerns",
+    label: "Concerns",
+    roles: ["faculty", "mentor", "staff"],
+  },
   { href: "/models", label: "Models", roles: ["admin"] },
 ];
 

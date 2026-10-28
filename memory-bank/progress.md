@@ -72,6 +72,9 @@
 - `feature/web-shell` merged to `main` (123bc1d), CI and Scale green
 - `feature/models-screen`: `/models` and `/models/[release]` (metrics, fairness table, gate blocks, sign-off form, model card), 16 Playwright tests. Web lint, prettier, typecheck and 34 Playwright tests pass (dev and production build)
 
+- `feature/models-screen` merged to `main` (e147e73), CI and Scale green
+- `feature/concerns-screen`: `/concerns` (faculty raise form and own list; mentor and staff list with acknowledge), 15 Playwright tests. Web lint, prettier, typecheck and 49 Playwright tests pass (dev and production build); no Python changed
+
 ## Next
 
 - Merge the admin API, tag `v0.4.0` (see activeContext)

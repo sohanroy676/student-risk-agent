@@ -7,6 +7,7 @@ import type { Page, Route } from "@playwright/test";
 import type {
   CaseDetail,
   CaseState,
+  Concern,
   GateResult,
   ModelRelease,
   Role,
@@ -111,6 +112,8 @@ export class FakeApi {
   private failure: { status: number; detail: unknown } | null = null;
   /** The model registry the admin screens read; set it in a test that needs one. */
   releases: ModelRelease[] = [];
+  /** The concerns the signed-in role may see (the real API narrows them by row security). */
+  concerns: Concern[] = [];
 
   constructor(
     readonly cases: CaseDetail[],
@@ -162,6 +165,10 @@ export class FakeApi {
         offset: 0,
       });
     }
+    const concern = /^\/api\/concerns(?:\/(\d+)\/acknowledge)?$/.exec(path);
+    if (concern) {
+      return this.concernRoute(route, request.method(), concern[1], url, body);
+    }
     const models = /^\/api\/admin\/models(?:\/(\d+))?(\/card|\/promote)?$/.exec(
       path,
     );
@@ -208,6 +215,62 @@ export class FakeApi {
       return this.reply(route, 200, { id: found.id, version });
     }
     return this.reply(route, 405, { detail: "method not allowed" });
+  }
+
+  private concernRoute(
+    route: Route,
+    method: string,
+    acknowledgeId: string | undefined,
+    url: URL,
+    body: unknown,
+  ) {
+    if (acknowledgeId) {
+      const found = this.concerns.find((c) => c.id === Number(acknowledgeId));
+      if (!found)
+        return this.reply(route, 404, { detail: "concern not found" });
+      if (found.acknowledged) {
+        return this.reply(route, 409, {
+          detail: "concern already acknowledged",
+        });
+      }
+      Object.assign(found, {
+        acknowledged: true,
+        acknowledged_by: "m1",
+        acknowledged_on: "2026-03-03",
+      });
+      return this.reply(route, 200, found);
+    }
+    if (method === "POST") {
+      const { student_id, category, note } = body as {
+        student_id: number;
+        category: Concern["category"];
+        note: string;
+      };
+      if (student_id === 999) {
+        return this.reply(route, 404, { detail: "student not found" });
+      }
+      const id = this.concerns.length + 1;
+      this.concerns.unshift({
+        id,
+        student_id,
+        category,
+        raised_on: "2026-03-03",
+        note,
+        acknowledged: false,
+        raised_by: null,
+        acknowledged_by: null,
+        acknowledged_on: null,
+      });
+      return this.reply(route, 200, { id });
+    }
+    const openOnly = url.searchParams.get("open_only") === "true";
+    const items = this.concerns.filter((c) => !openOnly || !c.acknowledged);
+    return this.reply(route, 200, {
+      items,
+      total: items.length,
+      limit: 50,
+      offset: 0,
+    });
   }
 
   private models(
@@ -296,5 +359,23 @@ export function blockedBy(...blocks: string[]): ModelRelease["gate_now"] {
     hard_failures: [],
     overridden: [],
     signed_off_by: null,
+  };
+}
+
+export function makeConcern(
+  id: number,
+  overrides: Partial<Concern> = {},
+): Concern {
+  return {
+    id,
+    student_id: id * 10,
+    category: "attendance",
+    raised_on: "2026-03-02",
+    note: "Missed three labs in a row",
+    acknowledged: false,
+    raised_by: "f1",
+    acknowledged_by: null,
+    acknowledged_on: null,
+    ...overrides,
   };
 }
