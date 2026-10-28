@@ -20,29 +20,8 @@ from app.features.tables import CoreTables
 PRESENTATION_STARTS = {"B": (2, 1), "J": (10, 1)}
 AT_RISK_RESULTS = frozenset({"Withdrawn", "Fail"})
 MAX_MARKS = 100
-# vle.csv activity types grouped into event types; an unlisted type is a plain "view".
-ACTIVITY_EVENT_TYPES = {
-    "forumng": "forum_post",
-    "quiz": "quiz_attempt",
-    "externalquiz": "quiz_attempt",
-    "oucontent": "content",
-    "resource": "content",
-    "page": "content",
-    "subpage": "content",
-    "sharedsubpage": "content",
-    "folder": "content",
-    "homepage": "homepage",
-    "url": "url",
-    "oucollaborate": "collab",
-    "ouelluminate": "collab",
-    "ouwiki": "wiki_glossary",
-    "glossary": "wiki_glossary",
-    "dataplus": "wiki_glossary",
-    "htmlactivity": "activity",
-    "repeatactivity": "activity",
-    "questionnaire": "activity",
-    "dualpane": "activity",
-}
+# vle.csv activity types that map to a specific event type; everything else is a "view".
+ACTIVITY_EVENT_TYPES = {"forumng": "forum_post", "quiz": "quiz_attempt"}
 MISSING = ["?"]  # the published files write "?" for missing values
 
 _REQUIRED_COLUMNS = {
