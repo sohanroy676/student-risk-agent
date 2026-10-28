@@ -5,13 +5,18 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from app.cases.config import CaseConfig
 from app.features.snapshot import FEATURE_NAMES
 from app.ml import fairness
 from app.ml.baseline import weekly_matrix
 from app.ml.calibrate import fit_calibrated
 from app.ml.fairness import (
     PROTECTED,
+    RED_CUTOFF,
+    choose_flags,
+    fairness_from_flags,
     fairness_report,
+    flag_at,
     flag_top,
     group_table,
     recall_gaps,
@@ -163,6 +168,92 @@ def test_only_known_protected_columns_and_aligned_rows_are_accepted() -> None:
         group_table(attributes.assign(final_result="Pass"), y, flagged)
     with pytest.raises(ValueError, match="same index"):
         group_table(attributes, y.iloc[::-1].reset_index(drop=True).iloc[1:], flagged)
+
+
+# --- flag_at (the red band) ---
+
+
+def test_the_default_cutoff_is_the_case_engines_red_entry() -> None:
+    assert CaseConfig().red_enter == RED_CUTOFF
+
+
+def test_flag_at_flags_exactly_those_at_or_above_the_cutoff() -> None:
+    probability = pd.Series([0.1, 0.49, 0.5, 0.51, 1.0], index=list("abcde"))
+    flagged = flag_at(probability, 0.5)
+    assert list(flagged) == [False, False, True, True, True]
+    assert list(flagged.index) == list("abcde")
+
+
+def test_flag_at_can_flag_nobody_and_everybody() -> None:
+    assert not flag_at(pd.Series([0.1, 0.2]), 0.5).any()
+    assert flag_at(pd.Series([0.6, 0.9]), 0.5).all()
+
+
+@pytest.mark.parametrize("cutoff", [0.0, -0.1, 1.1, float("nan")])
+def test_flag_at_refuses_a_bad_cutoff(cutoff: float) -> None:
+    with pytest.raises(ValueError, match="cutoff"):
+        flag_at(pd.Series([0.5]), cutoff)
+
+
+@pytest.mark.parametrize("values", [[], [0.4, float("nan")]])
+def test_flag_at_refuses_empty_or_nan_probabilities(values: list[float]) -> None:
+    with pytest.raises(ValueError, match="probability"):
+        flag_at(pd.Series(values, dtype=float))
+
+
+def test_fairness_from_flags_matches_the_hand_computed_toy() -> None:
+    attributes, y, flagged = toy()
+    table, gaps = fairness_from_flags(attributes, y, flagged, min_group_size=2, min_positives=1)
+    recall = table.set_index("group")["recall"]
+    assert recall["A"] == 0.5 and recall["B"] == 1.0
+    assert gaps.iloc[0]["recall_gap"] == 0.5 and not gaps.iloc[0]["within_limit"]
+
+
+def test_a_rule_that_flags_nobody_gives_zero_recall_not_a_pass_by_default() -> None:
+    attributes, y, _ = toy()
+    nobody = pd.Series(False, index=y.index)
+    table, gaps = fairness_from_flags(attributes, y, nobody, min_group_size=2, min_positives=1)
+    assert (table["recall"] == 0.0).all() and (table["selection_rate"] == 0.0).all()
+    assert gaps.iloc[0]["recall_gap"] == 0.0  # equal, but the card shows 0% flagged
+
+
+def _fitted_synthetic() -> tuple[object, pd.DataFrame, pd.Series]:
+    data = generator.generate(seed=11)
+    ids = list(range(1, generator.N_STUDENTS + 1))
+    start = pd.Timestamp(generator.TERM_START)
+    kind = pd.Series([i % 3 for i in ids], index=pd.Index(ids, name="student_id"))
+    cohort = pd.DataFrame(
+        {
+            "term_start": kind.map({0: start, 1: start + pd.Timedelta(days=1), 2: start}),
+            "at_risk": [i in data.struggling_ids for i in ids],
+            "split": kind.map({0: "train", 1: "train", 2: "test"}),
+            "unregistered_on": pd.NaT,
+        },
+        index=kind.index,
+    )
+    features, y, split = weekly_matrix(to_core_tables(data), cohort, 8)
+    train = split == "train"
+    fitted = fit_calibrated(
+        features[train], y[train], cohort.loc[features.index[train], "term_start"]
+    )
+    return fitted, features[~train], y[~train]
+
+
+def test_choose_flags_uses_calibrated_probability_for_the_red_band() -> None:
+    fitted, features, _ = _fitted_synthetic()
+    flagged, rule = choose_flags(fitted, features)  # type: ignore[arg-type]
+    probability = fitted.predict_proba(features)  # type: ignore[attr-defined]
+    assert list(flagged) == list(probability >= RED_CUTOFF)
+    assert rule.startswith("red band") and f"{flagged.mean():.0%}" in rule
+
+
+def test_choose_flags_with_a_fraction_flags_the_top_share_by_raw_score() -> None:
+    fitted, features, _ = _fitted_synthetic()
+    flagged, rule = choose_flags(fitted, features, 0.2)  # type: ignore[arg-type]
+    assert rule.startswith("top 20% by score")
+    assert flagged.sum() >= int(np.ceil(0.2 * len(features)))
+    score = fitted.raw_score(features)  # type: ignore[attr-defined]
+    assert score[flagged.to_numpy()].min() >= score[~flagged.to_numpy()].max()
 
 
 # --- evaluation only: attributes cannot be model inputs ---

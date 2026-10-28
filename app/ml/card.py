@@ -16,7 +16,8 @@ LIMITS = (
     "The original AUC targets (0.72 at week 1, 0.86 at week 8) are not reachable on OULAD; "
     "they were relaxed to 0.68 and 0.79 and remain the goal on the college's own data.",
     "The top-10% precision target is capped at 0.70 where the base rate makes 2x unreachable.",
-    "The flagging rule used for the fairness table is a placeholder until band cut-offs are set.",
+    "The fairness table flags by the rule in its heading. The red band rule leaves out hysteresis "
+    "and the per-mentor nightly cap, and amber cases are not audited.",
     "Reasons describe feature values only; they do not say which direction is concerning.",
     "The model supports a mentor's judgement. It makes no automated decisions, and scores are "
     "never shown to students, parents or faculty.",
@@ -49,7 +50,7 @@ def render_card(
     weekly: pd.DataFrame,
     gaps: pd.DataFrame,
     groups: pd.DataFrame,
-    flag_fraction: float,
+    flag_rule: str,
     result: GateResult,
     sign_off: SignOff | None = None,
 ) -> str:
@@ -85,7 +86,7 @@ def render_card(
         + ", ".join(PROTECTED)
         + ".",
         "## Results by week (test year)\n" + markdown_table(weekly),
-        f"## Fairness (week 4, top {flag_fraction:.0%} flagged)\n"
+        f"## Fairness (week 4, flagged: {flag_rule})\n"
         "Recall gap is the largest difference in recall between groups of at least 100 "
         "students and 20 positives.\n\n" + markdown_table(gaps),
         "### Groups\n" + markdown_table(reliable),

@@ -30,7 +30,7 @@ def card(result: GateResult, sign_off: SignOff | None = None) -> str:
         weekly=WEEKLY,
         gaps=GAPS,
         groups=GROUPS,
-        flag_fraction=0.2,
+        flag_rule="top 20% by score",
         result=result,
         sign_off=sign_off,
     )
@@ -50,7 +50,7 @@ def test_card_has_every_section_and_the_numbers() -> None:
         assert heading in text
     assert "| 4 | 0.701 | 0.020 |" in text
     assert "| 8 | 0.770 | n/a |" in text  # a missing number is shown as n/a, never as 0
-    assert "top 20% flagged" in text
+    assert "flagged: top 20% by score" in text
     assert all(name in text for name in FEATURE_NAMES)
     assert "Not used as features" in text and all(name in text for name in PROTECTED)
 
