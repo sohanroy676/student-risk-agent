@@ -4,7 +4,13 @@
 
 import type { Page, Route } from "@playwright/test";
 
-import type { CaseDetail, CaseState, Role } from "../lib/types";
+import type {
+  CaseDetail,
+  CaseState,
+  GateResult,
+  ModelRelease,
+  Role,
+} from "../lib/types";
 
 export interface Recorded {
   method: string;
@@ -103,6 +109,8 @@ const OPEN: CaseState[] = [
 export class FakeApi {
   readonly requests: Recorded[] = [];
   private failure: { status: number; detail: unknown } | null = null;
+  /** The model registry the admin screens read; set it in a test that needs one. */
+  releases: ModelRelease[] = [];
 
   constructor(
     readonly cases: CaseDetail[],
@@ -154,6 +162,10 @@ export class FakeApi {
         offset: 0,
       });
     }
+    const models = /^\/api\/admin\/models(?:\/(\d+))?(\/card|\/promote)?$/.exec(
+      path,
+    );
+    if (models) return this.models(route, request.method(), models, body);
     const match = /^\/api\/cases\/(\d+)(\/actions|\/draft)?$/.exec(path);
     const found = match
       ? this.cases.find((c) => c.id === Number(match[1]))
@@ -197,4 +209,92 @@ export class FakeApi {
     }
     return this.reply(route, 405, { detail: "method not allowed" });
   }
+
+  private models(
+    route: Route,
+    method: string,
+    match: RegExpExecArray,
+    body: unknown,
+  ) {
+    if (!match[1]) {
+      return method === "GET"
+        ? this.reply(route, 200, this.releases)
+        : this.reply(route, 405, { detail: "method not allowed" });
+    }
+    const release = this.releases.find((r) => r.release === Number(match[1]));
+    if (!release)
+      return this.reply(route, 404, { detail: "release not found" });
+    if (method === "GET" && !match[2]) return this.reply(route, 200, release);
+    if (method === "GET" && match[2] === "/card") {
+      return this.reply(route, 200, {
+        release: release.release,
+        markdown: `# Model card: release ${release.release}
+
+<b>not html</b>`,
+      });
+    }
+    if (method === "POST" && match[2] === "/promote") {
+      const { covers } = body as { reason: string; covers: string[] };
+      const gate = release.gate_now;
+      if (release.in_production || !gate) {
+        return this.reply(route, 409, {
+          detail: "release is already in production",
+        });
+      }
+      const unresolved = gate.blocks.filter((b) => !covers.includes(b));
+      if (unresolved.length > 0 || gate.hard_failures.length > 0) {
+        return this.reply(route, 409, {
+          detail: { unresolved, hard_failures: gate.hard_failures },
+        });
+      }
+      for (const r of this.releases) r.in_production = r === release;
+      release.gate_now = null;
+      const result: GateResult = {
+        passed: true,
+        blocks: gate.blocks,
+        hard_failures: [],
+        overridden: covers,
+        signed_off_by: "root",
+      };
+      return this.reply(route, 200, result);
+    }
+    return this.reply(route, 405, { detail: "method not allowed" });
+  }
+}
+
+export function makeRelease(
+  release: number,
+  overrides: Partial<ModelRelease> = {},
+): ModelRelease {
+  return {
+    release,
+    created: "2026-03-01T10:00:00+00:00",
+    weeks: [1, 2, 4, 6, 8],
+    in_production: false,
+    metrics: {
+      auc_week4: 0.74,
+      ece: 0.02,
+      recall_gaps: { gender: 0.03, region: 0.04 },
+    },
+    gate_now: {
+      passed: true,
+      blocks: [],
+      hard_failures: [],
+      overridden: [],
+      signed_off_by: null,
+    },
+    gate_recorded: null,
+    sign_off: null,
+    ...overrides,
+  };
+}
+
+export function blockedBy(...blocks: string[]): ModelRelease["gate_now"] {
+  return {
+    passed: false,
+    blocks,
+    hard_failures: [],
+    overridden: [],
+    signed_off_by: null,
+  };
 }
