@@ -12,7 +12,9 @@ from app.ml.calibrate import CalibratedModel, fit_calibrated
 from app.ml.gate import Metrics, SignOff
 from app.ml.registry import (
     ALIAS,
+    AlreadyProduction,
     NoProductionModel,
+    NoSuchRelease,
     Registry,
     metrics_from_json,
     metrics_to_json,
@@ -181,3 +183,51 @@ def test_load_production_for_a_week_not_in_the_release_raises(
     release_of(registry, fitted, GOOD)
     with pytest.raises(NoProductionModel, match="week 1"):
         registry.load_production(1)
+
+
+def test_releases_are_listed_newest_first_with_their_state(
+    tmp_path: Path, fitted: dict[int, CalibratedModel]
+) -> None:
+    registry = Registry(tmp_path)
+    assert registry.releases() == []
+    first, _ = release_of(registry, fitted, GOOD)
+    worse, _ = release_of(registry, fitted, Metrics(0.70, 0.02, GOOD.recall_gaps))
+    found = registry.releases()
+    assert [r.release for r in found] == [int(worse[4]), int(first[4])]
+    assert [r.production for r in found] == [False, True]
+    assert found[1].metrics == GOOD and dict(found[1].versions) == first
+    assert found[0].gate is not None and found[0].gate["blocks"] == ["auc_lower"]
+    assert registry.card(found[0]) == "# card"
+
+
+def test_an_unknown_release_is_reported(tmp_path: Path) -> None:
+    with pytest.raises(NoSuchRelease):
+        Registry(tmp_path).release(1)
+
+
+def test_promote_release_needs_a_sign_off_covering_every_block_and_moves_all_weeks(
+    tmp_path: Path, fitted: dict[int, CalibratedModel]
+) -> None:
+    registry = Registry(tmp_path)
+    release_of(registry, fitted, GOOD)
+    gappy = Metrics(0.75, 0.02, {"gender": 0.03, "region": 0.2})
+    versions, passed = release_of(registry, fitted, gappy)
+    assert not passed
+    info = registry.release(int(versions[4]))
+    assert not registry.assess(info).passed
+    assert not registry.promote_release(info).passed
+    wrong = SignOff("A. Dean", "pilot", frozenset({"ece_high"}))
+    assert not registry.promote_release(info, wrong).passed
+    right = SignOff("A. Dean", "pilot", frozenset({"gap_high:region"}))
+    assert registry.promote_release(info, right).passed
+    assert all(alias_version(registry, w) == versions[w] for w in WEEKS)
+    assert registry.release(info.release).production
+
+
+def test_a_release_already_in_production_cannot_be_promoted_again(
+    tmp_path: Path, fitted: dict[int, CalibratedModel]
+) -> None:
+    registry = Registry(tmp_path)
+    versions, _ = release_of(registry, fitted, GOOD)
+    with pytest.raises(AlreadyProduction):
+        registry.promote_release(registry.release(int(versions[4])))

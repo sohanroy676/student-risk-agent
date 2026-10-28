@@ -13,7 +13,7 @@ from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
-from app.api import admin, cases, deps
+from app.api import admin, cases, deps, models
 from app.core.auth import Principal, Role, StaticKey, TokenVerifier
 from app.main import app
 
@@ -22,6 +22,7 @@ LEAKY = re.compile(r"probab|score|risk", re.IGNORECASE)
 ROUTERS = (
     cases.router,
     admin.router,
+    models.router,
 )  # add each new router here; the guard test below fails if one is missed
 API_ROUTES = [r for router in ROUTERS for r in router.routes if isinstance(r, APIRoute)]
 
@@ -141,6 +142,10 @@ def test_there_are_admin_routes_to_check() -> None:
         ("/api/admin/mentor-assignments/{student_id}", ("PUT",)),
         ("/api/admin/nightly/latest", ("GET",)),
         ("/api/admin/audit/verify", ("GET",)),
+        ("/api/admin/models", ("GET",)),
+        ("/api/admin/models/{release}", ("GET",)),
+        ("/api/admin/models/{release}/card", ("GET",)),
+        ("/api/admin/models/{release}/promote", ("POST",)),
     }
 
 
