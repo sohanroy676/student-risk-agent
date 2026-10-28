@@ -167,8 +167,10 @@ def _current_term(conn: Connection, as_of: date) -> tuple[int, date] | None:
 def _term_students(conn: Connection, term_id: int) -> list[int]:
     found = conn.execute(
         text(
-            "SELECT DISTINCT e.student_id FROM core.enrollments e "
-            "JOIN core.courses c ON c.id = e.course_id WHERE c.term_id = :t ORDER BY 1"
+            "SELECT DISTINCT st.id FROM core.students st "
+            "JOIN core.sections sec ON sec.id = st.section_id "
+            "JOIN core.enrollments e ON e.student_id = st.id "
+            "WHERE sec.term_id = :t ORDER BY 1"
         ),
         {"t": term_id},
     )

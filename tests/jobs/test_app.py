@@ -23,7 +23,7 @@ def test_broker_and_timezone_come_from_settings() -> None:
 
 
 def test_without_redis_the_app_still_builds_on_the_memory_broker() -> None:
-    assert make_celery(settings()).conf.broker_url == "memory://"
+    assert make_celery(settings(redis_url="")).conf.broker_url == "memory://"
 
 
 def test_nightly_is_scheduled_once_a_day_at_the_configured_hour() -> None:
