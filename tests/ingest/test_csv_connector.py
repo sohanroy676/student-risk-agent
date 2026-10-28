@@ -57,6 +57,9 @@ def test_synthetic_export_loads_clean_and_matches_the_generator(tmp_path: Path) 
     assert report.status == "ok"
     expected = to_frames(data)
     for name, frame in result.tables.items():
+        if name == "mentor_assignments":  # the synthetic export has no mentor file
+            assert frame.empty
+            continue
         # The generator emits some identical LMS events; the cleaner drops exact copies.
         want = expected[name].drop_duplicates(keep="last").reset_index(drop=True)
         assert len(frame) == len(want), name

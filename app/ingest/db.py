@@ -2,7 +2,9 @@
 
 Every statement is an upsert on the table's natural key, so loading the same files twice
 changes nothing. Rows that vanish from a later file are not deleted (the connector only
-adds and updates); `raw.dq_reports` keeps one report per run date and source.
+adds and updates); `raw.dq_reports` keeps one report per run date and source. A load that adds
+or reassigns mentors is audited (counts only), because assignments decide who sees which cases;
+an open case keeps the mentor it was opened with.
 Identifiers in the SQL come from `app.ingest.schema`, never from input.
 """
 
@@ -13,6 +15,7 @@ from typing import Any
 import pandas as pd
 from sqlalchemy import Connection, text
 
+from app.core import audit_store as audit
 from app.ingest.clean import CleanResult, clean
 from app.ingest.quality import DataQualityReport, build_report
 from app.ingest.schema import SPECS, TableSpec
@@ -104,6 +107,42 @@ def ingest(
     result = clean(raw, run_date)
     report = build_report(result, run_date)
     if report.status != "fail":
+        added, changed = _assignment_changes(conn, result.tables["mentor_assignments"])
         load_core(conn, result)
+        if added or changed:
+            audit.append(
+                conn,
+                actor_kind="system",
+                actor_id=None,
+                action="mentor_assignments.loaded",
+                subject_kind="mentor_assignments",
+                subject_ref=run_date.isoformat(),
+                detail={"source": source, "added": added, "changed": changed},
+            )
     store_report(conn, report, source)
     return result, report
+
+
+def _assignment_changes(conn: Connection, incoming: pd.DataFrame) -> tuple[int, int]:
+    """(new students, students whose mentor differs) among the incoming assignments."""
+    if incoming.empty:
+        return 0, 0
+    ids = [int(i) for i in incoming["student_id"]]
+    current: dict[int, str] = dict(
+        conn.execute(
+            text(
+                "SELECT student_id, mentor_id FROM app.mentor_assignments "
+                "WHERE student_id = ANY(:ids)"
+            ),
+            {"ids": ids},
+        )
+        .tuples()
+        .all()
+    )
+    added = changed = 0
+    for student, mentor in zip(ids, incoming["mentor_id"], strict=True):
+        if student not in current:
+            added += 1
+        elif current[student] != mentor:
+            changed += 1
+    return added, changed

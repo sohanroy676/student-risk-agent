@@ -122,6 +122,20 @@ def test_a_night_scores_everyone_opens_capped_cases_and_writes_reasons(
     )
 
 
+def test_mentors_from_the_csv_feed_the_first_night_with_no_manual_step(
+    engine: Engine, csv_dir: Path, registry: Registry
+) -> None:
+    lines = ["student_id,mentor_id"] + [
+        f"{s},m{s % MENTORS}" for s in range(1, generator.N_STUDENTS + 1)
+    ]
+    (csv_dir / "mentor_assignments.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    summary = _night(engine, csv_dir, registry)
+    assert summary.unassigned == 0
+    assert 0 < summary.opened <= 3 * MENTORS
+    assert _count(engine, "SELECT count(*) FROM app.mentor_assignments") == generator.N_STUDENTS
+    assert _count(engine, "SELECT count(DISTINCT mentor_id) FROM app.cases") > 1
+
+
 def test_running_the_same_night_twice_changes_nothing(
     engine: Engine, csv_dir: Path, registry: Registry
 ) -> None:

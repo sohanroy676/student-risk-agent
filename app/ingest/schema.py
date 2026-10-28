@@ -150,6 +150,15 @@ SPECS: tuple[TableSpec, ...] = (
         key=("student_id",),
         parents=(("student_id", "students"),),
     ),
+    # Who mentors whom: the case engine opens a case only for a student listed here. The mentor
+    # id is the mentor's login subject, kept as the exact text the file gives (trimmed).
+    TableSpec(
+        "mentor_assignments",
+        "app",
+        (Column("student_id", "int"), Column("mentor_id", "text")),
+        key=("student_id",),
+        parents=(("student_id", "students"),),
+    ),
 )
 
 SPEC_BY_NAME = {s.name: s for s in SPECS}
