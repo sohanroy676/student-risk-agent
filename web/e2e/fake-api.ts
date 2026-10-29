@@ -11,6 +11,7 @@ import type {
   GateResult,
   ModelRelease,
   NightlyRun,
+  Overview,
   Role,
 } from "../lib/types";
 
@@ -120,6 +121,8 @@ export class FakeApi {
   nightlyRun: NightlyRun | null = null;
   /** Mentor per student id as set through the assignment endpoint (student 999 is unknown). */
   readonly assignments = new Map<number, string>();
+  /** Students with no mentor, as the overview reports them. */
+  unassigned = 0;
 
   constructor(
     readonly cases: CaseDetail[],
@@ -184,6 +187,11 @@ export class FakeApi {
     const concern = /^\/api\/concerns(?:\/(\d+)\/acknowledge)?$/.exec(path);
     if (concern) {
       return this.concernRoute(route, request.method(), concern[1], url, body);
+    }
+    if (request.method() === "GET" && path === "/api/overview") {
+      if (this.role !== "staff" && this.role !== "admin")
+        return this.reply(route, 403, { detail: "not allowed" });
+      return this.reply(route, 200, this.overview());
     }
     const assign = /^\/api\/admin\/mentor-assignments\/(\d+)$/.exec(path);
     if (assign && request.method() === "PUT") {
@@ -264,6 +272,30 @@ export class FakeApi {
       return this.reply(route, 200, { id: found.id, version });
     }
     return this.reply(route, 405, { detail: "method not allowed" });
+  }
+
+  /** Counts of the open cases the fake holds, shaped like GET /api/overview. */
+  private overview(): Overview {
+    const open = this.cases.filter((c) => OPEN.includes(c.state));
+    const by_state = Object.fromEntries(OPEN.map((s) => [s, 0]));
+    const by_band = { amber: 0, red: 0 };
+    const mentors = new Map<string, { open: number; overdue: number }>();
+    for (const c of open) {
+      by_state[c.state] += 1;
+      by_band[c.band] += 1;
+      const m = mentors.get(c.mentor_id) ?? { open: 0, overdue: 0 };
+      m.open += 1;
+      if (c.overdue) m.overdue += 1;
+      mentors.set(c.mentor_id, m);
+    }
+    return {
+      open_cases: open.length,
+      overdue: open.filter((c) => c.overdue).length,
+      by_state,
+      by_band,
+      by_mentor: [...mentors].map(([mentor_id, m]) => ({ mentor_id, ...m })),
+      unassigned_students: this.unassigned,
+    };
   }
 
   private concernRoute(

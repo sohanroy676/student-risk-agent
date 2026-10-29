@@ -149,7 +149,15 @@ v0.3 "Model and explanations" is merged to `main` (PR #3) and tagged `v0.3.0`; C
 - 18 more Playwright tests (84 in all, dev and production build).
 - Machine notes: git identity and `gh` login were set up on 2026-10-29 (gh is at `C:\Program Files\GitHub CLI\gh.exe`, not on the Bash PATH). A fresh checkout needs `npm ci` and `npx playwright install chromium` in `web/`; do not run `npx prettier` before `npm ci` (npx fetches a newer prettier that reformats unrelated lines).
 
-## Next step (written 2026-10-28, end of session; item 1 done on `feature/admin-screens`, item 4 dropped from v0.5)
+## v0.5 department overview (2026-10-29)
+- `feature/admin-screens` is merged to `main` (a7113af), CI and Scale green.
+- `feature/department-overview` (not yet merged): `GET /api/overview` (`app/api/overview.py`), staff and admin only (mentor, faculty, others 403 before any data is read). Open cases by stage, by band (`by_band`, so no `band` property outside the case models), by mentor (open and overdue), total overdue (`overdue_noted`, same flag as the caseload) and `unassigned_students`. Counts only: no student ids, names, scores or probabilities. Closed cases are not counted.
+- Migration 0011: `app.unassigned_student_count()` (security definer, answers only for staff/admin, NULL for anyone else) because the API role cannot read `core.students`. Unassigned = every student with no `app.mentor_assignments` row (not only those scored).
+- `/overview` screen for staff and admin (nav link "Overview"; mentor/faculty see "not available" and make no request). 14 more Playwright tests (98 in all, dev and production build). Python: 937 passed locally with `APP_TIMEZONE=UTC`.
+- Local environment note: with the machine's `.env` the contract tests `test_an_action_request_accepts_only_the_five_human_actions` fail (`ZoneInfo keys must be normalized relative paths`), so `APP_TIMEZONE` in `.env` looks empty or invalid; CI is unaffected. Run local tests as `APP_TIMEZONE=UTC venv/Scripts/pytest ...`. Tools live in `venv/Scripts` (not on the Bash PATH). Not yet checked or fixed: ask before touching `.env`.
+- The new Postgres tests (`tests/api/test_overview_postgres.py`, in the cases/api shard) have only run in CI.
+
+## Next step (written 2026-10-28, end of session; items 1 done and 2 built on `feature/department-overview`, item 4 dropped from v0.5)
 State: `main` is at 70518f5 (merge of `feature/followup-escalations`), CI and Scale green. `v0.4.0` is tagged. v0.5 "Dashboard" is in progress; merged so far: models API, case drafts, faculty concerns API, web shell, models screen, concerns screen, follow-up and escalation screens. The branches `feature/*` listed in progress.md are all merged; old ones still exist (ask before deleting).
 
 Remaining in v0.5, in the agreed order, one branch each:

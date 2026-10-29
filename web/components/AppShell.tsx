@@ -32,6 +32,7 @@ const NAV: NavItem[] = [
     label: "Concerns",
     roles: ["faculty", "mentor", "staff"],
   },
+  { href: "/overview", label: "Overview", roles: ["staff", "admin"] },
   { href: "/models", label: "Models", roles: ["admin"] },
   { href: "/admin/assignments", label: "Assignments", roles: ["admin"] },
   { href: "/admin/nightly", label: "Nightly run", roles: ["admin"] },
