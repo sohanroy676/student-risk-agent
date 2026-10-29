@@ -61,9 +61,10 @@ cp .env.example .env          # PowerShell: Copy-Item .env.example .env
 
 ### Rules that save time
 
-- **Do not leave a line blank if you do not need it. Delete it.** `.env.example` lists every
-  name with an empty value, but an empty value is not the same as "not set": it replaces the
-  built-in default with an empty string. A blank `APP_TIMEZONE=` makes the API fail with
+- **Do not leave a line blank if you do not need it. Delete it.** `.env.example` comments out
+  the names that have a default (`APP_ENV`, `APP_TIMEZONE`, `MODEL_STORE`, `JWT_ROLES_CLAIM`), so
+  a straight copy is safe. Older copies may still have them blank, and an empty value is not the
+  same as "not set": it replaces the built-in default with an empty string. A blank `APP_TIMEZONE=` makes the API fail with
   `ZoneInfo keys must be normalized relative paths`; a blank `JWT_ROLES_CLAIM=` or `MODEL_STORE=`
   replaces `roles` and `mlruns` with nothing, so role lookup and the model folder go wrong.
   Variables with a default (marked below) can simply
@@ -139,10 +140,13 @@ to fill in or delete.
 - Changing `POSTGRES_*` after the first start does not change the existing database; the
   password is stored in the `pgdata` volume. Resetting it means `docker compose down -v`, which
   **deletes the database**.
-- `docker-compose.yml` does not publish the `db` or `redis` ports to your machine, so
-  `localhost:5432` and `localhost:6379` only work if you run Postgres and Redis yourself or add
-  `ports:` entries. It also does not mount `CSV_DIR` or `MODEL_STORE` into the worker, so the
-  nightly job in Compose needs those folders mounted first.
+- `docker-compose.yml` publishes `db` and `redis` on `127.0.0.1` only (ports 5432 and 6379), so
+  `localhost` URLs work from your machine but not from other computers. If you already run
+  Postgres or Redis locally on those ports, stop them or change the left-hand port number.
+- Inside Compose the worker reads CSV files from `./data/csv` (mounted read-only at `/data/csv`),
+  and the worker and API keep the model store in `./mlruns` (mounted at `/data/models`). Compose
+  sets `CSV_DIR` and `MODEL_STORE` to those container paths and ignores your `.env` values for
+  them. Create `data/csv/` before the first night.
 
 ## 5. Datasets
 
@@ -249,7 +253,7 @@ npm run lint
 npx prettier --check .
 ```
 
-**Not yet verified:** `npm run build` has never been run.
+`npm run build` is verified (it builds, and CI builds it). The web Docker image has not been built here (no Docker).
 
 ## 11. Day-to-day commands
 
