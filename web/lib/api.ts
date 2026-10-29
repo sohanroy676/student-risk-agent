@@ -12,6 +12,7 @@ import type {
   ModelCard,
   ModelRelease,
   NightlyRun,
+  Overview,
 } from "./types";
 
 export class ApiError extends Error {
@@ -166,4 +167,8 @@ export function assignMentor(
 
 export function loadLatestRun(): Promise<NightlyRun> {
   return request<NightlyRun>("/api/admin/nightly/latest");
+}
+
+export function loadOverview(): Promise<Overview> {
+  return request<Overview>("/api/overview");
 }

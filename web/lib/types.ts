@@ -145,3 +145,20 @@ export interface ConcernPage {
   limit: number;
   offset: number;
 }
+
+// Department overview (app/api/overview.py): counts only.
+
+export interface MentorLoad {
+  mentor_id: string;
+  open: number;
+  overdue: number;
+}
+
+export interface Overview {
+  open_cases: number;
+  overdue: number;
+  by_state: Record<string, number>;
+  by_band: Record<string, number>;
+  by_mentor: MentorLoad[];
+  unassigned_students: number;
+}
