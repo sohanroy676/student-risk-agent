@@ -170,6 +170,12 @@ v0.3 "Model and explanations" is merged to `main` (PR #3) and tagged `v0.3.0`; C
 - The fake API is a stand-in, so these prove the screens, not the backend; a real end-to-end run (Docker + Postgres) is still open.
 - STILL MANUAL (the user's): a mentor completes a review in under a minute; laptop and phone layout by eye. The 375 px no-sideways-scroll checks are automated.
 
+## Setup guide for `.env` (2026-10-29)
+- `setup.md` section 4 now explains every variable in `.env.example`, a working local example, how to mint dev tokens, a safe "which settings are empty" check, and troubleshooting entries.
+- Finding: blank lines copied from `.env.example` override the defaults with empty strings (pydantic-settings does not ignore empty values). That is why `APP_TIMEZONE=` broke 8 contract tests locally. The guide says to delete lines you do not need. `.env.example` itself still lists every name blank; consider commenting out the ones that have defaults (`APP_ENV`, `APP_TIMEZONE`, `MODEL_STORE`, `JWT_ROLES_CLAIM`) so a straight copy is safe.
+- Compose caveats written into the guide: `db` and `redis` ports are not published and `CSV_DIR`/`MODEL_STORE` are not mounted into the worker; changing `POSTGRES_*` after first start needs `docker compose down -v` (deletes data). `SECRET_KEY` and `ANTHROPIC_API_KEY` are not read by any code yet.
+- `setup.md` section 10 still says `npm run build` was never run; that is stale (it is verified and CI builds it).
+
 ## Next step (updated 2026-10-29)
 State: `main` is at e30b931 (merge of `feature/department-overview`), CI and Scale green as of the admin-screens merge; `feature/audit-screen` is built and committed but not merged. `v0.4.0` is tagged. v0.5 "Dashboard": done = models API, case drafts, faculty concerns API, web shell, models screen, concerns screen, follow-up and escalation screens, admin screens, department overview, audit screen (this branch).
 
