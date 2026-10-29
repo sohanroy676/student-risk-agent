@@ -12,10 +12,9 @@ from sqlalchemy.exc import ProgrammingError
 from app.agent.schema import InvalidPlan, Plan
 from app.agent.tools import CaseTools, run_tool
 from app.cases.config import CaseConfig
-from app.cases.drafts import InvalidMessage
 from app.cases.planner import Score
 from app.cases.states import WrongState
-from app.cases.store import run_night, save_plan
+from app.cases.store import draft_new_cases, route_crisis_cases, run_night, save_plan
 from app.core.audit_store import verify as audit_verify
 from app.core.db import scope_to_principal
 
@@ -108,8 +107,8 @@ def test_save_plan_stores_draft_plan_and_moves_the_case(conn: Connection) -> Non
     [
         ("case-1/nothing/2026-03-02", "Hi there.", InvalidPlan),
         ("case-99/lms_active_days/2026-03-02", "Hi there.", InvalidPlan),
-        ("REASON", "Your risk is high.", InvalidMessage),
-        ("REASON", "   ", InvalidMessage),
+        ("REASON", "Your risk is high.", InvalidPlan),
+        ("REASON", "   ", InvalidPlan),
     ],
 )
 def test_a_bad_plan_is_refused_and_writes_nothing(
@@ -170,3 +169,62 @@ def test_the_api_role_cannot_write_or_change_a_plan(conn: Connection) -> None:
             conn.execute(text(sql))
         conn.rollback()
         scope_to_principal(conn, "m1", "mentor")
+
+
+CRISIS_NOTE = "Student told me they want to die"
+
+
+def _draft_count(conn: Connection) -> int:
+    return int(conn.execute(text("SELECT count(*) FROM app.case_drafts")).scalar_one())
+
+
+def test_a_crisis_note_routes_the_new_case_to_a_person_with_no_draft(conn: Connection) -> None:
+    case_id = _case(conn, 1)
+    other = _case(conn, 2)
+    _concern(conn, 1, DAY - timedelta(days=2), CRISIS_NOTE)
+    drafted = draft_new_cases(conn, DAY, CaseConfig())
+    states = dict(conn.execute(text("SELECT id, state FROM app.cases")).tuples())
+    assert states[case_id] == "escalated" and states[other] == "drafted"
+    assert drafted == [other]
+    assert _draft_count(conn) == 1
+    assert (
+        conn.execute(
+            text("SELECT count(*) FROM app.case_drafts WHERE case_id = :c"), {"c": case_id}
+        ).scalar_one()
+        == 0
+    )
+    event = conn.execute(
+        text("SELECT actor_kind, detail FROM app.case_events WHERE case_id = :c AND kind = :k"),
+        {"c": case_id, "k": "route_crisis"},
+    ).one()
+    assert event.actor_kind == "system" and event.detail["reason"] == "crisis"
+    blob = json.dumps(
+        [
+            r.detail
+            for r in conn.execute(text("SELECT detail FROM app.case_events")).all()
+            + conn.execute(text("SELECT detail FROM gov.audit_log")).all()
+        ]
+    )
+    assert "want to die" not in blob and "Student told" not in blob
+    assert audit_verify(conn).ok
+
+
+def test_only_a_recent_note_about_this_student_counts(conn: Connection) -> None:
+    case_id = _case(conn, 1)
+    _concern(conn, 2, DAY - timedelta(days=1), CRISIS_NOTE)  # another student
+    _concern(conn, 1, DAY - timedelta(days=30), CRISIS_NOTE)  # too old
+    _concern(conn, 1, DAY + timedelta(days=1), CRISIS_NOTE)  # not yet written
+    _concern(conn, 1, DAY - timedelta(days=1), "Missed two classes")
+    assert draft_new_cases(conn, DAY, CaseConfig()) == [case_id]
+    assert conn.execute(text("SELECT state FROM app.cases")).scalar_one() == "drafted"
+
+
+def test_routing_runs_once_and_only_on_new_cases(conn: Connection) -> None:
+    case_id = _case(conn, 1)
+    _concern(conn, 1, DAY - timedelta(days=1), CRISIS_NOTE)
+    assert route_crisis_cases(conn, DAY, CaseConfig()) == [case_id]
+    assert route_crisis_cases(conn, DAY, CaseConfig()) == []
+    assert draft_new_cases(conn, DAY, CaseConfig()) == []
+    with pytest.raises(WrongState):
+        save_plan(conn, case_id, _plan(f"case-{case_id}/lms_active_days/{DAY}"), "agent-1", DAY)
+    assert _draft_count(conn) == 0

@@ -91,9 +91,12 @@
 
 - `feature/agent-tools`: agent plan schema, read-only case tools, `save_plan`, migration 0012 (`app.case_plans`), `tests/agent`. Local: ruff, mypy, 969 passed (non-postgres); its Postgres tests are first run by CI
 
+- `feature/agent-tools` merged to `main` (4ce2f35), CI and Scale green
+- `feature/plan-validator`: `validate_plan`/`check_plan`, crisis detector, `ROUTE_CRISIS`, `route_crisis_cases`; tests in `tests/agent` and `tests/cases/test_states.py`; its Postgres tests first run in CI
+
 ## Next
 
-- v0.5 is done and tagged `v0.5.0` locally (not pushed). Continue v0.6: plan-validator, agent-provider, agent-evals, outbox-notifier, reply-handling, outbox/reply screens; details in activeContext
+- v0.5 is done and tagged `v0.5.0` locally (not pushed). Continue v0.6 (plan-validator in progress): agent-provider, agent-evals, outbox-notifier, reply-handling, outbox/reply screens; details in activeContext
 
 ## Unverified (added)
 

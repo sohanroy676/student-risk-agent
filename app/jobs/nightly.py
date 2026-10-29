@@ -25,7 +25,7 @@ from sqlalchemy import Connection, Engine, create_engine, text
 from app.cases.config import CaseConfig
 from app.cases.planner import Score
 from app.cases.states import OPEN_STATES
-from app.cases.store import draft_new_cases, run_night, run_timers
+from app.cases.store import draft_new_cases, route_crisis_cases, run_night, run_timers
 from app.core import audit_store as audit
 from app.core.settings import get_settings
 from app.features.db import load_core_tables
@@ -62,6 +62,7 @@ class NightSummary:
     unassigned: int
     reasons: int
     drafted: int
+    crisis_routed: int
     moved_to_review: int
     newly_overdue: int
 
@@ -194,6 +195,7 @@ def _audit_detail(summary: NightSummary) -> dict[str, object]:
         "unassigned": summary.unassigned,
         "reasons_written": summary.reasons,
         "drafted": summary.drafted,
+        "crisis_routed": summary.crisis_routed,
         "moved_to_review": summary.moved_to_review,
         "newly_overdue": summary.newly_overdue,
     }
@@ -247,6 +249,7 @@ def run_pipeline(
             rows = reason_rows(model, features, by_student, as_of)
             _store_reasons(conn, rows, list(by_student.values()), as_of)
             reasons = len(rows)
+        crisis = route_crisis_cases(conn, as_of, cfg)
         drafted = draft_new_cases(conn, as_of, cfg)
         timers = run_timers(conn, as_of, cfg)
         summary = NightSummary(
@@ -260,6 +263,7 @@ def run_pipeline(
             unassigned=len(plan.unassigned),
             reasons=reasons,
             drafted=len(drafted),
+            crisis_routed=len(crisis),
             moved_to_review=len(timers.moved_to_review),
             newly_overdue=len(timers.newly_overdue),
         )

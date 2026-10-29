@@ -15,8 +15,10 @@ from datetime import date, timedelta
 from sqlalchemy import Connection, text
 from sqlalchemy.exc import IntegrityError
 
-from app.agent.schema import InvalidPlan, Plan
-from app.agent.tools import CaseTools
+from app.agent.crisis import is_crisis
+from app.agent.schema import Plan
+from app.agent.tools import CONCERN_WINDOW_DAYS, CaseTools
+from app.agent.validate import check_plan
 from app.cases.bands import Band
 from app.cases.config import CaseConfig
 from app.cases.drafts import check_message, template_message
@@ -217,6 +219,7 @@ def advance(
     actor_id: str | None,
     today: date,
     cfg: CaseConfig | None = None,
+    detail: dict[str, object] | None = None,
 ) -> State:
     """Apply one action to a case. Raises `WrongActor` or `WrongState` (both `NotAllowed`), or
     `LookupError` for an unknown case. Approving records who approved and when."""
@@ -250,11 +253,8 @@ def advance(
             "id": case_id,
         },
     )
-    detail: dict[str, object] | None = (
-        {"auto_escalated": True}
-        if action is Action.CONTINUE and moved.state is State.ESCALATED
-        else None
-    )
+    if action is Action.CONTINUE and moved.state is State.ESCALATED:
+        detail = {**(detail or {}), "auto_escalated": True}
     _event(conn, case_id, today, action.value, old, moved.state, actor, actor_id, detail)
     return moved.state
 
@@ -282,13 +282,50 @@ def _add_draft(
     )
 
 
+def _has_crisis_note(conn: Connection, case_id: int, today: date) -> bool:
+    """Whether a recent concern note about the case's student has crisis wording. The notes are
+    read here, on the server, and never reach the agent; only the yes/no leaves this function."""
+    notes = conn.execute(
+        text(
+            "SELECT n.note FROM app.concerns n "
+            "WHERE n.student_id = (SELECT student_id FROM app.cases WHERE id = :id) "
+            "AND n.raised_on <= :today AND n.raised_on > :since"
+        ),
+        {"id": case_id, "today": today, "since": today - timedelta(days=CONCERN_WINDOW_DAYS)},
+    ).scalars()
+    return is_crisis(notes)
+
+
+def route_crisis(
+    conn: Connection, case_id: int, today: date, cfg: CaseConfig | None = None
+) -> None:
+    """Send a new case straight to `escalated`: no draft, nothing for a student. The event and
+    audit entry say only `reason: crisis`, never the note or the words that matched."""
+    advance(
+        conn, case_id, Action.ROUTE_CRISIS, Actor.SYSTEM, None, today, cfg, {"reason": "crisis"}
+    )
+
+
+def route_crisis_cases(conn: Connection, today: date, cfg: CaseConfig | None = None) -> list[int]:
+    """Route every new case with crisis wording in a recent concern note to a person."""
+    found = conn.execute(text("SELECT id FROM app.cases WHERE state = 'new' ORDER BY id")).scalars()
+    routed = [case_id for case_id in list(found) if _has_crisis_note(conn, case_id, today)]
+    for case_id in routed:
+        route_crisis(conn, case_id, today, cfg)
+    return routed
+
+
 def draft_new_cases(conn: Connection, today: date, cfg: CaseConfig | None = None) -> list[int]:
     """Give every new case its template draft and move it to `drafted`.
+
+    Cases with crisis wording in a recent concern note are routed to a person first
+    (`route_crisis_cases`) and get no draft; they are not in the returned list.
 
     This is the template fallback of the drafting step: it saves the plan as the agent actor
     (author `template`) until the v0.6 agent writes real drafts. Nothing is sent; a mentor must
     still approve. Cases already drafted are left alone, so a re-run changes nothing.
     """
+    route_crisis_cases(conn, today, cfg)
     found = conn.execute(
         text("SELECT id, cycle FROM app.cases WHERE state = 'new' ORDER BY id")
     ).tuples()
@@ -302,10 +339,11 @@ def draft_new_cases(conn: Connection, today: date, cfg: CaseConfig | None = None
 def save_plan(conn: Connection, case_id: int, plan: Plan, author: str, today: date) -> int:
     """Save the agent's plan as the next draft version and move the case to `drafted`.
 
-    The case must be `new`. The message must pass `check_message`, and every `fact_id` a claim
-    cites must be one the case has (its reasons and recent concerns); otherwise `InvalidPlan`
-    or `InvalidMessage`, and nothing is written. The `save_plan` event and audit entry come from
-    `advance` and carry no wording. Returns the draft version.
+    The case must be `new`. The plan must pass `check_plan` (banned terms, links, contact
+    details, crisis wording, and every `fact_id` a claim cites must be one the case has: its
+    reasons and recent concerns); otherwise `InvalidPlan`, and nothing is written. The
+    `save_plan` event and audit entry come from `advance` and carry no wording. Returns the
+    draft version.
     """
     row = conn.execute(
         text("SELECT state FROM app.cases WHERE id = :id FOR UPDATE"), {"id": case_id}
@@ -314,12 +352,8 @@ def save_plan(conn: Connection, case_id: int, plan: Plan, author: str, today: da
         raise LookupError(f"no case {case_id}")
     if State(row.state) is not State.NEW:
         raise WrongState(f"cannot save a plan for a {row.state} case")
-    message = check_message(plan.message)
-    known = CaseTools(conn, case_id, today).known_fact_ids()
-    cited = {fid for claim in plan.rationale for fid in claim.fact_ids}
-    if not cited <= known:
-        raise InvalidPlan("a claim cites a fact the case does not have")
-    version = _add_draft(conn, case_id, "agent", author, message, today)
+    plan = check_plan(plan, CaseTools(conn, case_id, today).known_fact_ids())
+    version = _add_draft(conn, case_id, "agent", author, plan.message, today)
     conn.execute(
         text(
             "INSERT INTO app.case_plans (case_id, draft_version, rationale, steps) "
