@@ -234,3 +234,67 @@ def test_a_malformed_anchor_is_422(api: Api, anchor: str) -> None:
 def test_only_an_admin_can_read_the_run_and_the_audit_check(api: Api, role: str, path: str) -> None:
     log_run(api, "nightly.run", {"as_of": "2026-03-01"})
     assert api.get(path, "m1", role).status_code == 403
+
+
+def log_three(api: Api) -> None:
+    log_run(api, "nightly.run", {"cases_opened": 3, "student_name": "Asha Rao"})
+    log_run(api, "nightly.run", {"cases_opened": 1})
+    log_run(api, "nightly.halted", {"cause": "too many rejected rows"})
+
+
+def test_the_audit_list_is_newest_first_and_carries_no_detail(api: Api) -> None:
+    log_three(api)
+    body = api.get("/api/admin/audit", "root", "admin").json()
+    assert [e["seq"] for e in body["items"]] == [3, 2, 1]
+    assert body["total"] == 3 and (body["limit"], body["offset"]) == (50, 0)
+    first = body["items"][0]
+    assert set(first) == {
+        "seq",
+        "at",
+        "actor_kind",
+        "actor_id",
+        "action",
+        "subject_kind",
+        "subject_ref",
+        "hash_prefix",
+    }
+    assert first["action"] == "nightly.halted" and first["actor_kind"] == "system"
+    text_ = api.get("/api/admin/audit", "root", "admin").text
+    assert "Asha" not in text_ and "cases_opened" not in text_ and "rejected" not in text_
+    full = api.scalar("SELECT hash FROM gov.audit_log WHERE seq = 3")
+    assert full.startswith(first["hash_prefix"]) and len(first["hash_prefix"]) == 12
+
+
+def test_the_audit_list_filters_by_action_and_pages(api: Api) -> None:
+    log_three(api)
+    runs = api.get("/api/admin/audit?action=nightly.run", "root", "admin").json()
+    assert [e["seq"] for e in runs["items"]] == [2, 1] and runs["total"] == 2
+    page = api.get("/api/admin/audit?limit=1&offset=1", "root", "admin").json()
+    assert [e["seq"] for e in page["items"]] == [2] and page["total"] == 3
+    none = api.get("/api/admin/audit?action=nothing.like.this", "root", "admin").json()
+    assert none["items"] == [] and none["total"] == 0
+    past = api.get("/api/admin/audit?offset=50", "root", "admin").json()
+    assert past["items"] == [] and past["total"] == 3
+
+
+def test_the_audit_list_treats_the_filter_as_a_value_not_as_sql(api: Api) -> None:
+    log_three(api)
+    reply = api.get("/api/admin/audit?action=x'%20OR%20'1'='1", "root", "admin")
+    assert reply.status_code == 200 and reply.json()["items"] == []
+
+
+@pytest.mark.parametrize("query", ["limit=0", "limit=201", "offset=-1", "action="])
+def test_the_audit_list_refuses_bad_paging(api: Api, query: str) -> None:
+    assert api.get(f"/api/admin/audit?{query}", "root", "admin").status_code == 422
+
+
+@pytest.mark.parametrize("role", ["mentor", "staff", "faculty"])
+def test_only_an_admin_can_read_the_audit_list(api: Api, role: str) -> None:
+    log_three(api)
+    reply = api.get("/api/admin/audit", "someone", role)
+    assert reply.status_code == 403 and "items" not in reply.json()
+
+
+def test_the_audit_list_on_an_empty_log(api: Api) -> None:
+    body = api.get("/api/admin/audit", "root", "admin").json()
+    assert body["items"] == [] and body["total"] == 0

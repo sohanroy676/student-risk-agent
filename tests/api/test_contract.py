@@ -161,6 +161,7 @@ def test_there_are_admin_routes_to_check() -> None:
     assert {(r.path, tuple(sorted(r.methods))) for r in ADMIN_ROUTES} == {
         ("/api/admin/mentor-assignments/{student_id}", ("PUT",)),
         ("/api/admin/nightly/latest", ("GET",)),
+        ("/api/admin/audit", ("GET",)),
         ("/api/admin/audit/verify", ("GET",)),
         ("/api/admin/models", ("GET",)),
         ("/api/admin/models/{release}", ("GET",)),

@@ -1,4 +1,4 @@
-"""Admin endpoints: who mentors whom, the last nightly run, and the audit chain check.
+"""Admin endpoints: who mentors whom, the last nightly run, and the audit log and its check.
 
 Admin only. The actor on every write comes from the token. Nothing here returns a score or
 band, and the audit entries written carry counts and references, never mentor-student pairs.
@@ -34,6 +34,18 @@ RUN_DETAIL_KEYS = (
     "cause",
 )
 MAX_STUDENT_ID = 2**31 - 1
+HASH_PREFIX_LENGTH = 12
+# No `detail` column on purpose. A missing `action` filter (NULL) matches every row.
+COUNT_AUDIT = (
+    "SELECT count(*) FROM gov.audit_log "
+    "WHERE (CAST(:action AS text) IS NULL OR action = CAST(:action AS text))"
+)
+LIST_AUDIT = (
+    "SELECT seq, at, actor_kind, actor_id, action, subject_kind, subject_ref, "
+    "left(hash, :prefix) AS hash_prefix FROM gov.audit_log "
+    "WHERE (CAST(:action AS text) IS NULL OR action = CAST(:action AS text)) "
+    "ORDER BY seq DESC LIMIT :limit OFFSET :offset"
+)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -64,6 +76,26 @@ class NightlyRun(BaseModel):
     at: str
     action: str
     detail: dict[str, Any]
+
+
+class AuditEntry(BaseModel):
+    """One audit row without its `detail`: who did what to which record, and when."""
+
+    seq: int
+    at: str
+    actor_kind: str
+    actor_id: str | None
+    action: str
+    subject_kind: str
+    subject_ref: str | None
+    hash_prefix: str
+
+
+class AuditPage(BaseModel):
+    items: list[AuditEntry]
+    total: int
+    limit: int
+    offset: int
 
 
 class AuditCheck(BaseModel):
@@ -104,6 +136,40 @@ def latest_nightly_run(_: Admin, conn: Conn) -> NightlyRun:
         raise HTTPException(status_code=404, detail="no nightly run recorded")
     detail = {k: v for k, v in dict(row.detail).items() if k in RUN_DETAIL_KEYS}
     return NightlyRun(seq=int(row.seq), at=row.at.isoformat(), action=row.action, detail=detail)
+
+
+@router.get("/audit")
+def list_audit_entries(
+    _: Admin,
+    conn: Conn,
+    action: Annotated[str | None, Query(min_length=1, max_length=100)] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0, le=1_000_000)] = 0,
+) -> AuditPage:
+    """Newest first. The stored `detail` is never returned, only the fields named above."""
+    total = conn.execute(text(COUNT_AUDIT), {"action": action}).scalar()
+    rows = conn.execute(
+        text(LIST_AUDIT),
+        {"action": action, "prefix": HASH_PREFIX_LENGTH, "limit": limit, "offset": offset},
+    ).all()
+    return AuditPage(
+        items=[
+            AuditEntry(
+                seq=int(r.seq),
+                at=r.at.isoformat(),
+                actor_kind=r.actor_kind,
+                actor_id=r.actor_id,
+                action=r.action,
+                subject_kind=r.subject_kind,
+                subject_ref=r.subject_ref,
+                hash_prefix=r.hash_prefix,
+            )
+            for r in rows
+        ],
+        total=int(total or 0),
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get("/audit/verify")
