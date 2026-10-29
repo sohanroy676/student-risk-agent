@@ -194,13 +194,16 @@ v0.3 "Model and explanations" is merged to `main` (PR #3) and tagged `v0.3.0`; C
 - Crisis input is the concern **note** text, scanned on the server in `draft_new_cases` for new cases only (concerns of the last 30 days about that student); the model never sees notes. English only, untuned, over-matches on purpose (a false alarm just reaches a person). Event and audit say `reason: crisis` only. Not done: crisis notes for students whose case is already drafted/monitoring, or who have no case; no counsellor notification beyond the escalated case showing up for staff.
 - Local: ruff, mypy; the Postgres tests added to `tests/agent/test_plans_postgres.py` first run in CI.
 
-## Next step (updated 2026-10-29)
-State: `main` is at e30b931 (merge of `feature/department-overview`), CI and Scale green as of the admin-screens merge; `feature/audit-screen` is built and committed but not merged. `v0.4.0` is tagged. v0.5 "Dashboard": done = models API, case drafts, faculty concerns API, web shell, models screen, concerns screen, follow-up and escalation screens, admin screens, department overview, audit screen (this branch).
+## Next step (updated 2026-10-29, end of session)
+State: v0.4.0 and v0.5.0 are tagged and pushed. v0.6 "Agent and follow-up" is in progress (`v0.6.0` NOT tagged): branches 1 (agent-tools) and 2 (plan-validator) are merged to `main`. Check the merge commit's CI and Scale runs first (`gh run list --branch main --limit 4`); the Postgres tests for crisis routing in `tests/agent/test_plans_postgres.py` first ran there, so fix any failure on a `fix/` branch.
 
-Remaining in v0.5:
-1. Merge `feature/role-flows` after its branch CI (ask first).
-2. Resources and settings: LEFT OUT of v0.5 by decision (2026-10-29); the roadmap does not define them.
-3. The user's manual checks (above), then tag `v0.5.0` (ask first).
+Remaining v0.6 branches, in order:
+1. `feature/agent-provider`: provider interface in `app/agent/providers/`, fake provider for tests, Anthropic provider (`claude-sonnet-5-5` drafting, `claude-haiku-5-5` for reply triage later), key from `.env` only, retry then template fallback, plugged into `draft_new_cases` (use `validate_plan` on every reply, `CaseTools` for the tool loop, `save_plan` as actor `agent`); with no API key the night keeps using the template. Crisis routing already runs before drafting.
+2. `feature/agent-evals`: 50 synthetic cases in `evals/`, `pytest evals/` with the fake provider in CI (100% claims cite valid fact_ids, 0 banned-term leaks, 100% crisis cases routed to people with no student message).
+3. `feature/outbox-notifier`: outbox and consent migrations; `restricted.student_contacts` from an optional connector CSV, read only by the notifier; email only (SMTP, faked in tests); refuses rows without `approved_by` or consent; one outreach per student per 7 days; quiet hours 21:00-08:00 IST; audited without wording.
+4. `feature/reply-handling`: inbound replies triaged by the smaller model; crisis replies go to a person; links into the 7-day timer.
+5. Outbox and reply screens on the case page, plus Playwright tests.
+Small follow-ups: show `crisis_routed` in the web nightly label list (`web/lib/admin.ts`); crisis notes for cases already past `new` and for students with no case (not covered yet); "cases, api" CI shard is about 8 min, rebalance if the slowest-test list says so.
 
 Open items carried over: real OIDC sign-in (the web sign-in is a dev token); a real end-to-end run against the API and Postgres (needs Docker); `docker compose up`, Dockerfile `libgomp1` and the web image are unverified; `npm audit` shows 3 findings in `next`/`sharp` (no `next/image` used; fix needs a `next` bump outside the pinned range, decide when); manual v0.3 checks (read a model card, reasons for 10 students); optional pytest-xdist; the red-band fairness audit should be re-run on the college's own data; faculty enter student IDs by hand until the data has a teacher-to-student link. Demographics must not be added as features.
 
