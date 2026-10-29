@@ -93,7 +93,7 @@
 
 ## Next
 
-- Finish v0.5 (admin screens, department overview, audit screen, resources and settings if wanted, per-role Playwright flows, manual checks), then tag `v0.5.0`; details in activeContext
+- v0.5 is done and tagged `v0.5.0` locally (not pushed). Continue v0.6: plan-validator, agent-provider, agent-evals, outbox-notifier, reply-handling, outbox/reply screens; details in activeContext
 
 ## Unverified (added)
 
