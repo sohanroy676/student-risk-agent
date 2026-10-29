@@ -80,6 +80,8 @@
 
 - `feature/followup-escalations` merged to `main` (70518f5), CI and Scale green
 
+- `feature/admin-screens`: `/admin/assignments` and `/admin/nightly`, 18 Playwright tests. Web lint, typecheck, prettier (touched files) and 84 Playwright tests pass (dev and production build); no Python changed. Branch CI run 40824559096
+
 ## Next
 
 - Finish v0.5 (admin screens, department overview, audit screen, resources and settings if wanted, per-role Playwright flows, manual checks), then tag `v0.5.0`; details in activeContext

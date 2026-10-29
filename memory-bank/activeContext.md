@@ -143,7 +143,13 @@ v0.3 "Model and explanations" is merged to `main` (PR #3) and tagged `v0.3.0`; C
 - Dev server note for tests: a page that loads in an effect fetches twice under React Strict Mode, so `FakeApi.failNext(status, detail, times)` takes a count; a test that must see the error on load passes 2.
 - 17 more Playwright tests (66 in all, dev and production build).
 
-## Next step (written 2026-10-28, end of session)
+## v0.5 admin screens (2026-10-29)
+- `feature/admin-screens` (not yet merged): `/admin/assignments` (form: student ID, mentor ID; client rules mirror `MentorId` in `app/api/admin.py`; result in words, "no change" when nothing moved) and `/admin/nightly` (last run; fixed label list, so unknown or nested detail keys are never shown; 404 = "No nightly run recorded yet"). Admin only, other roles make no request. Nav links "Assignments" and "Nightly run". No Python changed.
+- Decisions: the assignment screen is a form only (no lookup of current mentor; bulk changes stay with the CSV import). Resources and settings are LEFT OUT of v0.5 (undefined in the roadmap; revisit later). The audit list (next branch) returns no `detail` at all.
+- 18 more Playwright tests (84 in all, dev and production build).
+- Machine notes: git identity and `gh` login were set up on 2026-10-29 (gh is at `C:\Program Files\GitHub CLI\gh.exe`, not on the Bash PATH). A fresh checkout needs `npm ci` and `npx playwright install chromium` in `web/`; do not run `npx prettier` before `npm ci` (npx fetches a newer prettier that reformats unrelated lines).
+
+## Next step (written 2026-10-28, end of session; item 1 done on `feature/admin-screens`, item 4 dropped from v0.5)
 State: `main` is at 70518f5 (merge of `feature/followup-escalations`), CI and Scale green. `v0.4.0` is tagged. v0.5 "Dashboard" is in progress; merged so far: models API, case drafts, faculty concerns API, web shell, models screen, concerns screen, follow-up and escalation screens. The branches `feature/*` listed in progress.md are all merged; old ones still exist (ask before deleting).
 
 Remaining in v0.5, in the agreed order, one branch each:
