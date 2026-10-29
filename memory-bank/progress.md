@@ -82,6 +82,9 @@
 
 - `feature/admin-screens`: `/admin/assignments` and `/admin/nightly`, 18 Playwright tests. Web lint, typecheck, prettier (touched files) and 84 Playwright tests pass (dev and production build); no Python changed. Branch CI run 40824559096
 
+- `feature/admin-screens` merged to `main` (a7113af), CI and Scale green
+- `feature/department-overview`: `GET /api/overview`, migration 0011 (`app.unassigned_student_count()`), `/overview` screen, 14 Playwright tests. Local: ruff, mypy, 937 passed (non-postgres, `APP_TIMEZONE=UTC`), web lint, typecheck, prettier (touched files) and 98 Playwright tests (dev and production build). Its Postgres tests are first run by CI
+
 ## Next
 
 - Finish v0.5 (admin screens, department overview, audit screen, resources and settings if wanted, per-role Playwright flows, manual checks), then tag `v0.5.0`; details in activeContext
