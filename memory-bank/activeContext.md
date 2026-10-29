@@ -176,6 +176,11 @@ v0.3 "Model and explanations" is merged to `main` (PR #3) and tagged `v0.3.0`; C
 - Compose caveats written into the guide: `db` and `redis` ports are not published and `CSV_DIR`/`MODEL_STORE` are not mounted into the worker; changing `POSTGRES_*` after first start needs `docker compose down -v` (deletes data). `SECRET_KEY` and `ANTHROPIC_API_KEY` are not read by any code yet.
 - `setup.md` section 10 still says `npm run build` was never run; that is stale (it is verified and CI builds it).
 
+## Setup fixes and v0.5.0 (2026-10-29)
+- Manual v0.5 checks done by the user. `v0.5.0` tagged (annotated) on 9bc72f6; push pending the user's confirmation.
+- `chore/setup-fixes`: `.env.example` comments out `APP_ENV`, `APP_TIMEZONE`, `MODEL_STORE`, `JWT_ROLES_CLAIM` (a straight copy is now safe); compose publishes `db`/`redis` on 127.0.0.1 only, mounts `./data/csv` (read-only) as `CSV_DIR=/data/csv` in the worker and `./mlruns` as `MODEL_STORE=/data/models` in worker and API (unverified, no Docker); `setup.md` Docker notes and the stale `npm run build` line fixed.
+- v0.6 plan (decided): email only first (SMTP transport); contacts and consent in `restricted.student_contacts` loaded by an optional connector CSV, read only by the notifier. Branch order: agent-tools, plan-validator, agent-provider, agent-evals, outbox-notifier, reply-handling, outbox/reply screens.
+
 ## Next step (updated 2026-10-29)
 State: `main` is at e30b931 (merge of `feature/department-overview`), CI and Scale green as of the admin-screens merge; `feature/audit-screen` is built and committed but not merged. `v0.4.0` is tagged. v0.5 "Dashboard": done = models API, case drafts, faculty concerns API, web shell, models screen, concerns screen, follow-up and escalation screens, admin screens, department overview, audit screen (this branch).
 
