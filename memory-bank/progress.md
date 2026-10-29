@@ -84,6 +84,8 @@
 
 - `feature/admin-screens` merged to `main` (a7113af), CI and Scale green
 - `feature/department-overview`: `GET /api/overview`, migration 0011 (`app.unassigned_student_count()`), `/overview` screen, 14 Playwright tests. Local: ruff, mypy, 937 passed (non-postgres, `APP_TIMEZONE=UTC`), web lint, typecheck, prettier (touched files) and 98 Playwright tests (dev and production build). Its Postgres tests are first run by CI
+- `feature/department-overview` merged to `main` (e30b931)
+- `feature/audit-screen`: `GET /api/admin/audit` (no detail), `/admin/audit` screen, 14 Playwright tests. Local: ruff, mypy, 945 passed (non-postgres, `APP_TIMEZONE=UTC`), web lint, typecheck, prettier (touched files), 112 Playwright tests (dev and production build). Its Postgres tests are first run by CI
 
 ## Next
 
