@@ -164,13 +164,19 @@ v0.3 "Model and explanations" is merged to `main` (PR #3) and tagged `v0.3.0`; C
 - 14 more Playwright tests (112 in all, dev and production build). `FakeApi` now records `query` as well as `path`. In selectors use `exact: true` for "Next"/"Previous" (the Next.js dev-tools button also matches "Next"), and wait for a list to load before `failNext` in a production build (it loads faster than the dev build, so the failure can hit the wrong request).
 - Python: 945 passed locally (non-postgres, `APP_TIMEZONE=UTC`). The new Postgres tests are in `tests/api/test_admin_postgres.py`; first run is CI.
 
+## v0.5 role journeys (2026-10-29)
+- `feature/audit-screen` is merged to `main` (772f5c3).
+- `feature/role-flows` (not yet merged): `web/e2e/roles.spec.ts`, one journey per role in a single session against the fake API: faculty (raise a concern, only the Concerns link, every other screen turned away), mentor (edit, save and approve a draft, acknowledge a concern, admin screens turned away), staff (overview, resolve an escalation, overview count falls), admin (read-only case page, reassign a student, overview shows the new mentor, nightly run, audit chain check, models). "Turned away" means the message appears and the app made no API request at all. Nav links per role are asserted exactly. 4 more Playwright tests (116 in all, dev and production build). No Python changed.
+- The fake API is a stand-in, so these prove the screens, not the backend; a real end-to-end run (Docker + Postgres) is still open.
+- STILL MANUAL (the user's): a mentor completes a review in under a minute; laptop and phone layout by eye. The 375 px no-sideways-scroll checks are automated.
+
 ## Next step (updated 2026-10-29)
 State: `main` is at e30b931 (merge of `feature/department-overview`), CI and Scale green as of the admin-screens merge; `feature/audit-screen` is built and committed but not merged. `v0.4.0` is tagged. v0.5 "Dashboard": done = models API, case drafts, faculty concerns API, web shell, models screen, concerns screen, follow-up and escalation screens, admin screens, department overview, audit screen (this branch).
 
 Remaining in v0.5:
-1. Merge `feature/audit-screen` after its branch CI (ask first).
+1. Merge `feature/role-flows` after its branch CI (ask first).
 2. Resources and settings: LEFT OUT of v0.5 by decision (2026-10-29); the roadmap does not define them.
-3. Final pass: one Playwright flow per role (faculty, mentor, staff, admin); the manual checks (a mentor completes a review in under a minute; laptop and phone layout) are the user's; then tag `v0.5.0` (ask first).
+3. The user's manual checks (above), then tag `v0.5.0` (ask first).
 
 Open items carried over: real OIDC sign-in (the web sign-in is a dev token); a real end-to-end run against the API and Postgres (needs Docker); `docker compose up`, Dockerfile `libgomp1` and the web image are unverified; `npm audit` shows 3 findings in `next`/`sharp` (no `next/image` used; fix needs a `next` bump outside the pinned range, decide when); manual v0.3 checks (read a model card, reasons for 10 students); optional pytest-xdist; the red-band fairness audit should be re-run on the college's own data; faculty enter student IDs by hand until the data has a teacher-to-student link. Demographics must not be added as features.
 
