@@ -124,6 +124,21 @@ export interface Concern {
   acknowledged_on: string | null;
 }
 
+// Admin screens (app/api/admin.py).
+
+export interface AssignmentResult {
+  student_id: number;
+  changed: boolean;
+  cases_moved: number;
+}
+
+export interface NightlyRun {
+  seq: number;
+  at: string;
+  action: string; // "nightly.run" or "nightly.halted"
+  detail: Record<string, unknown>;
+}
+
 export interface ConcernPage {
   items: Concern[];
   total: number;

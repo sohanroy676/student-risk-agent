@@ -10,6 +10,7 @@ import type {
   Concern,
   GateResult,
   ModelRelease,
+  NightlyRun,
   Role,
 } from "../lib/types";
 
@@ -115,6 +116,10 @@ export class FakeApi {
   releases: ModelRelease[] = [];
   /** The concerns the signed-in role may see (the real API narrows them by row security). */
   concerns: Concern[] = [];
+  /** The latest nightly run; null means none is recorded (404). */
+  nightlyRun: NightlyRun | null = null;
+  /** Mentor per student id as set through the assignment endpoint (student 999 is unknown). */
+  readonly assignments = new Map<number, string>();
 
   constructor(
     readonly cases: CaseDetail[],
@@ -179,6 +184,32 @@ export class FakeApi {
     const concern = /^\/api\/concerns(?:\/(\d+)\/acknowledge)?$/.exec(path);
     if (concern) {
       return this.concernRoute(route, request.method(), concern[1], url, body);
+    }
+    const assign = /^\/api\/admin\/mentor-assignments\/(\d+)$/.exec(path);
+    if (assign && request.method() === "PUT") {
+      const studentId = Number(assign[1]);
+      if (studentId === 999)
+        return this.reply(route, 404, { detail: "student not found" });
+      const { mentor_id } = body as { mentor_id: string };
+      const changed = this.assignments.get(studentId) !== mentor_id;
+      this.assignments.set(studentId, mentor_id);
+      const open = this.cases.filter(
+        (c) =>
+          c.student_id === studentId &&
+          OPEN.includes(c.state) &&
+          c.mentor_id !== mentor_id,
+      );
+      for (const c of open) c.mentor_id = mentor_id;
+      return this.reply(route, 200, {
+        student_id: studentId,
+        changed,
+        cases_moved: open.length,
+      });
+    }
+    if (request.method() === "GET" && path === "/api/admin/nightly/latest") {
+      return this.nightlyRun
+        ? this.reply(route, 200, this.nightlyRun)
+        : this.reply(route, 404, { detail: "no nightly run recorded" });
     }
     const models = /^\/api\/admin\/models(?:\/(\d+))?(\/card|\/promote)?$/.exec(
       path,
