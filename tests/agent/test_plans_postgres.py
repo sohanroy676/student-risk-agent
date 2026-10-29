@@ -183,7 +183,7 @@ def test_a_crisis_note_routes_the_new_case_to_a_person_with_no_draft(conn: Conne
     other = _case(conn, 2)
     _concern(conn, 1, DAY - timedelta(days=2), CRISIS_NOTE)
     drafted = draft_new_cases(conn, DAY, CaseConfig())
-    states = dict(conn.execute(text("SELECT id, state FROM app.cases")).tuples())
+    states = {r.id: r.state for r in conn.execute(text("SELECT id, state FROM app.cases"))}
     assert states[case_id] == "escalated" and states[other] == "drafted"
     assert drafted == [other]
     assert _draft_count(conn) == 1
