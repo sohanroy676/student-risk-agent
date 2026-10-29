@@ -13,7 +13,7 @@ from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
-from app.api import admin, cases, concerns, deps, models
+from app.api import admin, cases, concerns, deps, models, overview
 from app.core.auth import Principal, Role, StaticKey, TokenVerifier
 from app.main import app
 
@@ -24,6 +24,7 @@ ROUTERS = (
     admin.router,
     models.router,
     concerns.router,
+    overview.router,
 )  # add each new router here; the guard test below fails if one is missed
 API_ROUTES = [r for router in ROUTERS for r in router.routes if isinstance(r, APIRoute)]
 
@@ -145,6 +146,14 @@ def test_admin_routes_refuse_mentors_and_staff_before_any_data_is_read(
     reply = client.request(
         method, _concrete(route.path), json=_body(route), headers=bearer(pems, [role])
     )
+    assert reply.status_code == 403 and reply.json() == {"detail": "not allowed"}
+
+
+def test_the_overview_is_for_staff_and_admin_only(
+    client: TestClient, pems: tuple[str, str]
+) -> None:
+    assert set(overview.OVERVIEW_READERS) == {Role.STAFF, Role.ADMIN}
+    reply = client.get("/api/overview", headers=bearer(pems, ["mentor"]))
     assert reply.status_code == 403 and reply.json() == {"detail": "not allowed"}
 
 
