@@ -1,5 +1,6 @@
 import { clearToken, getToken } from "./session";
 import type {
+  AssignmentResult,
   CaseAction,
   CaseDetail,
   CasePage,
@@ -10,6 +11,7 @@ import type {
   GateResult,
   ModelCard,
   ModelRelease,
+  NightlyRun,
 } from "./types";
 
 export class ApiError extends Error {
@@ -150,4 +152,18 @@ export function acknowledgeConcern(id: number): Promise<Concern> {
   return request<Concern>(`/api/concerns/${id}/acknowledge`, {
     method: "POST",
   });
+}
+
+export function assignMentor(
+  studentId: number,
+  mentorId: string,
+): Promise<AssignmentResult> {
+  return request<AssignmentResult>(
+    `/api/admin/mentor-assignments/${studentId}`,
+    { method: "PUT", body: JSON.stringify({ mentor_id: mentorId.trim() }) },
+  );
+}
+
+export function loadLatestRun(): Promise<NightlyRun> {
+  return request<NightlyRun>("/api/admin/nightly/latest");
 }
