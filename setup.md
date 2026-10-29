@@ -59,9 +59,90 @@ Secrets live in `.env`, which is git-ignored. Never hardcode them or commit them
 cp .env.example .env          # PowerShell: Copy-Item .env.example .env
 ```
 
-Open `.env` and fill in every variable listed there. `docker-compose.yml` requires at least
-`POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB`. Outside Docker the backend reads
-`DATABASE_URL` (format `postgresql+psycopg://USER:PASSWORD@HOST:5432/DBNAME`) and `REDIS_URL`.
+### Rules that save time
+
+- **Do not leave a line blank if you do not need it. Delete it.** `.env.example` lists every
+  name with an empty value, but an empty value is not the same as "not set": it replaces the
+  built-in default with an empty string. A blank `APP_TIMEZONE=` makes the API fail with
+  `ZoneInfo keys must be normalized relative paths`; a blank `JWT_ROLES_CLAIM=` or `MODEL_STORE=`
+  replaces `roles` and `mlruns` with nothing, so role lookup and the model folder go wrong.
+  Variables with a default (marked below) can simply
+  be removed.
+- The app reads `.env` from the folder you start it in, so run commands from the repo root.
+  A variable set in your shell wins over the same name in `.env`.
+- Never put a real password, key or token anywhere except `.env` (git-ignored) and never paste
+  it into chat, issues or commits.
+- To make a password: `python -c "import secrets; print(secrets.token_urlsafe(24))"`. It only
+  uses letters, digits, `-` and `_`, so it is safe inside a database URL. A password with `@`,
+  `:`, `/` or `%` would need URL-encoding there.
+
+### What each variable is
+
+| Variable | Needed for | What to put |
+|---|---|---|
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` | Docker Compose (it creates the database from them) | Any names you choose, e.g. user `risk`, db `risk`, and a generated password. Compose refuses to start without all three. |
+| `DATABASE_URL` | API, worker, migrations, `alembic` | `postgresql+psycopg://USER:PASSWORD@HOST:5432/DBNAME` using the three values above. Use `localhost` as HOST when the app runs on your machine. Inside Compose this is set for you and your `.env` value is ignored. |
+| `REDIS_URL` | Celery worker and beat (nightly job) | `redis://localhost:6379/0` for a Redis on your machine. Inside Compose it is set for you. The worker refuses to start without it; the API alone does not need it. |
+| `APP_ENV` | Safety switch | `dev` (default). Use `production` on a real server: the dev token tool then refuses to run. |
+| `APP_TIMEZONE` | When "tonight" and "today" start | An IANA name such as `Asia/Kolkata`. Default `UTC`. The nightly job runs at 01:00 in this zone. |
+| `CSV_DIR` | Nightly job | Folder holding the ERP/LMS CSV exports (see section 5 for the synthetic set: `data/synthetic/out`). Required for the nightly run, not for the API. |
+| `MODEL_STORE` | Nightly job and model release | Folder for the local MLflow store. Default `mlruns` (git-ignored). Remove the line unless you want it elsewhere. |
+| `JWT_ISSUER`, `JWT_AUDIENCE` | Sign-in checks on every API call | The issuer URL and audience of your identity provider. For local trials any fixed text works, e.g. `https://dev.local` and `risk-api`, as long as the same values are used to mint tokens. |
+| `JWT_PUBLIC_KEY` | Sign-in checks | The identity provider's RS256 public key as one line with `\n` where the line breaks are. For local trials, print it with `python -m app.core.dev_token --show-public-key`. Use this **or** `JWT_JWKS_URL`. |
+| `JWT_JWKS_URL` | Sign-in checks | The provider's JWKS address, instead of a fixed key. Leave out if you use `JWT_PUBLIC_KEY`. |
+| `JWT_ROLES_CLAIM` | Sign-in checks | Where the roles sit in the token. Default `roles`; a dotted path such as `realm_access.roles` works. Remove the line if the default is right. |
+| `NEXT_PUBLIC_DEV_TOKEN_LOGIN` | Web sign-in page | `true` shows a paste-a-token form (dev only), anything else hides it. Compose defaults to `false`. Never `true` on a real server. |
+| `SECRET_KEY` | Nothing yet | Not read by any code today. You can leave it out for now, or generate a value as above so it is ready. |
+| `ANTHROPIC_API_KEY` | Nothing yet | Not read by any code today. It is for the drafting agent planned for v0.6. When that arrives, create a key in the Anthropic Console and keep it only in `.env`. |
+
+Without any `JWT_*` settings the API starts but answers `503 authentication is not configured`
+to every call; a wrong key or audience gives a bare `401`.
+
+### A working local setup (app on your machine, Postgres and Redis anywhere reachable)
+
+```text
+POSTGRES_USER=risk
+POSTGRES_PASSWORD=<generated password>
+POSTGRES_DB=risk
+DATABASE_URL=postgresql+psycopg://risk:<generated password>@localhost:5432/risk
+REDIS_URL=redis://localhost:6379/0
+APP_ENV=dev
+APP_TIMEZONE=Asia/Kolkata
+CSV_DIR=data/synthetic/out
+JWT_ISSUER=https://dev.local
+JWT_AUDIENCE=risk-api
+NEXT_PUBLIC_DEV_TOKEN_LOGIN=true
+```
+
+Then add the public key and mint a token (the key pair is created on first use in
+`.dev-keys/`, which is git-ignored):
+
+```bash
+python -m app.core.dev_token --show-public-key     # copy the printed JWT_PUBLIC_KEY=... line into .env
+python -m app.core.dev_token --role mentor --sub m1  # prints a token to paste on the web sign-in page
+```
+
+Roles you can mint: `admin`, `staff`, `mentor`, `faculty`. The web app sign-in is dev-only for
+now; real single sign-on is not built yet.
+
+**Check your file** without printing any secret. This lists the settings that are empty:
+
+```bash
+python -c "from app.core.settings import get_settings as g; print([k for k, v in g().model_dump().items() if v == ''])"
+```
+
+An empty `jwt_jwks_url` is fine when you use `JWT_PUBLIC_KEY`, and the other way round.
+Anything else listed that you need (for example `app_timezone`, `database_url`) is a blank line
+to fill in or delete.
+
+**Docker notes (not yet verified, no Docker on the author's machine):**
+- Changing `POSTGRES_*` after the first start does not change the existing database; the
+  password is stored in the `pgdata` volume. Resetting it means `docker compose down -v`, which
+  **deletes the database**.
+- `docker-compose.yml` does not publish the `db` or `redis` ports to your machine, so
+  `localhost:5432` and `localhost:6379` only work if you run Postgres and Redis yourself or add
+  `ports:` entries. It also does not mount `CSV_DIR` or `MODEL_STORE` into the worker, so the
+  nightly job in Compose needs those folders mounted first.
 
 ## 5. Datasets
 
@@ -190,3 +271,11 @@ npx prettier --check .
   not match section 5; re-extract the zip into the exact folder name.
 - **Postgres tests skipped:** `TEST_DATABASE_URL` is not set in the shell running `pytest`.
 - **`docker compose` complains "set in .env":** fill in the `POSTGRES_*` values in `.env`.
+- **`ZoneInfo keys must be normalized relative paths` (API or tests):** `APP_TIMEZONE=` is blank
+  in `.env`. Set a zone name or delete the line (section 4).
+- **API answers `503 authentication is not configured`:** set `JWT_ISSUER`, `JWT_AUDIENCE` and
+  one of `JWT_PUBLIC_KEY` / `JWT_JWKS_URL`.
+- **API answers a bare `401`:** the token is expired or was signed by a different key, issuer or
+  audience than the API is configured with. Mint a fresh one with the same `.env`.
+- **Nightly job says `DATABASE_URL`/`CSV_DIR` is not set, or the worker `REDIS_URL`:** fill those
+  in (section 4) and restart the worker.
