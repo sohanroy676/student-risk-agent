@@ -6,7 +6,8 @@
     new | drafted | in_review --dismiss--> dismissed
 
 A third cycle escalates instead of continuing. That routes the case to a person; it decides
-nothing about the student. Only a mentor can approve, only the agent can save a plan.
+nothing about the student. Only a mentor can approve, only the agent can save a plan, and only
+the system routes a new case with crisis wording straight to escalated (no draft is written).
 """
 
 from dataclasses import dataclass
@@ -34,6 +35,7 @@ class Action(StrEnum):
     CONTINUE = "continue"
     ESCALATE = "escalate"
     DISMISS = "dismiss"
+    ROUTE_CRISIS = "route_crisis"  # a new case goes straight to a person, with no draft
 
 
 class Actor(StrEnum):
@@ -54,6 +56,7 @@ RULES: dict[Action, tuple[frozenset[State], frozenset[Actor]]] = {
     Action.SAVE_PLAN: (frozenset({State.NEW}), frozenset({Actor.AGENT})),
     Action.APPROVE: (frozenset({State.DRAFTED}), frozenset({Actor.MENTOR})),
     Action.FOLLOWUP_DUE: (frozenset({State.MONITORING}), frozenset({Actor.SYSTEM})),
+    Action.ROUTE_CRISIS: (frozenset({State.NEW}), frozenset({Actor.SYSTEM})),
     Action.RESOLVE: (
         frozenset({State.IN_REVIEW, State.ESCALATED}),
         frozenset({Actor.MENTOR, Actor.STAFF}),
@@ -117,7 +120,7 @@ def step(
         new, new_cycle = (
             (State.ESCALATED, cycle) if cycle >= cfg.max_cycles else (State.MONITORING, cycle + 1)
         )
-    elif action is Action.ESCALATE:
+    elif action in (Action.ESCALATE, Action.ROUTE_CRISIS):
         new, new_cycle = State.ESCALATED, cycle
     elif action is Action.RESOLVE:
         new, new_cycle = State.RESOLVED, cycle

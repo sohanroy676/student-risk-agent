@@ -106,3 +106,15 @@ def test_escalated_cases_wait_for_staff_with_no_deadline() -> None:
 def test_there_is_no_automatic_decision_action() -> None:
     names = {a.value for a in Action}
     assert not names & {"detain", "fine", "grade", "send", "message"}
+
+
+def test_only_the_system_routes_a_new_case_to_a_person() -> None:
+    assert RULES[Action.ROUTE_CRISIS] == (frozenset({State.NEW}), frozenset({Actor.SYSTEM}))
+    s = step(State.NEW, 1, Action.ROUTE_CRISIS, Actor.SYSTEM, DAY, CFG)
+    assert (s.state, s.closed, s.due_on) == (State.ESCALATED, False, None)
+    for actor in (Actor.AGENT, Actor.MENTOR, Actor.STAFF, Actor.ADMIN):
+        with pytest.raises(WrongActor):
+            step(State.NEW, 1, Action.ROUTE_CRISIS, actor, DAY, CFG)
+    for state in set(State) - {State.NEW}:
+        with pytest.raises(WrongState):
+            step(state, 1, Action.ROUTE_CRISIS, Actor.SYSTEM, DAY, CFG)
