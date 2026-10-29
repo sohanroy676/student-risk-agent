@@ -157,15 +157,20 @@ v0.3 "Model and explanations" is merged to `main` (PR #3) and tagged `v0.3.0`; C
 - Local environment note: with the machine's `.env` the contract tests `test_an_action_request_accepts_only_the_five_human_actions` fail (`ZoneInfo keys must be normalized relative paths`), so `APP_TIMEZONE` in `.env` looks empty or invalid; CI is unaffected. Run local tests as `APP_TIMEZONE=UTC venv/Scripts/pytest ...`. Tools live in `venv/Scripts` (not on the Bash PATH). Not yet checked or fixed: ask before touching `.env`.
 - The new Postgres tests (`tests/api/test_overview_postgres.py`, in the cases/api shard) have only run in CI.
 
-## Next step (written 2026-10-28, end of session; items 1 done and 2 built on `feature/department-overview`, item 4 dropped from v0.5)
-State: `main` is at 70518f5 (merge of `feature/followup-escalations`), CI and Scale green. `v0.4.0` is tagged. v0.5 "Dashboard" is in progress; merged so far: models API, case drafts, faculty concerns API, web shell, models screen, concerns screen, follow-up and escalation screens. The branches `feature/*` listed in progress.md are all merged; old ones still exist (ask before deleting).
+## v0.5 audit screen (2026-10-29)
+- `feature/department-overview` is merged to `main` (e30b931).
+- `feature/audit-screen` (not yet merged): `GET /api/admin/audit` in `app/api/admin.py` (admin only; `action` exact filter, `limit` 1-200, `offset`; newest first; total returned). Fields: seq, at, actor_kind, actor_id, action, subject_kind, subject_ref and `hash_prefix` (first 12 characters). The stored `detail` is never selected. Static SQL with bind parameters only (ruff S608 refused string-built SQL, even with fixed fragments). The actor id is shown (accountability is the point of the log); the audit rows themselves carry no mentor-student pairing.
+- `/admin/audit` screen: chain check (optional saved anchor; a broken chain shows the first bad entry as an alert, an intact one shows the anchor to keep) and a paged, filterable table. Nav link "Audit", admin only; other roles see "not available" and make no request.
+- 14 more Playwright tests (112 in all, dev and production build). `FakeApi` now records `query` as well as `path`. In selectors use `exact: true` for "Next"/"Previous" (the Next.js dev-tools button also matches "Next"), and wait for a list to load before `failNext` in a production build (it loads faster than the dev build, so the failure can hit the wrong request).
+- Python: 945 passed locally (non-postgres, `APP_TIMEZONE=UTC`). The new Postgres tests are in `tests/api/test_admin_postgres.py`; first run is CI.
 
-Remaining in v0.5, in the agreed order, one branch each:
-1. Admin screens: mentor assignment (API `PUT /api/admin/mentor-assignments/{student_id}` exists) and the last nightly run (`GET /api/admin/nightly/latest`). Screens only.
-2. Department overview: needs a new staff/admin aggregate endpoint (counts by state, band and mentor, overdue and unassigned; counts only, no scores, no names) plus a screen.
-3. Audit screen: needs a new admin-only endpoint that lists audit entries (whitelisted fields only; never `detail` free text) plus the existing verify check, plus a screen.
-4. Resources and settings: NOT DEFINED in the roadmap and the user has not answered. My guess: resources = referral contacts (counselling, financial aid) that mentors read and admin edits; settings = case thresholds and timers read-only. Ask before building; leaving it out of v0.5 is an option.
-5. Final pass: one Playwright flow per role, the manual checks (a mentor completes a review in under a minute; laptop and phone layout), then tag `v0.5.0` (ask first).
+## Next step (updated 2026-10-29)
+State: `main` is at e30b931 (merge of `feature/department-overview`), CI and Scale green as of the admin-screens merge; `feature/audit-screen` is built and committed but not merged. `v0.4.0` is tagged. v0.5 "Dashboard": done = models API, case drafts, faculty concerns API, web shell, models screen, concerns screen, follow-up and escalation screens, admin screens, department overview, audit screen (this branch).
+
+Remaining in v0.5:
+1. Merge `feature/audit-screen` after its branch CI (ask first).
+2. Resources and settings: LEFT OUT of v0.5 by decision (2026-10-29); the roadmap does not define them.
+3. Final pass: one Playwright flow per role (faculty, mentor, staff, admin); the manual checks (a mentor completes a review in under a minute; laptop and phone layout) are the user's; then tag `v0.5.0` (ask first).
 
 Open items carried over: real OIDC sign-in (the web sign-in is a dev token); a real end-to-end run against the API and Postgres (needs Docker); `docker compose up`, Dockerfile `libgomp1` and the web image are unverified; `npm audit` shows 3 findings in `next`/`sharp` (no `next/image` used; fix needs a `next` bump outside the pinned range, decide when); manual v0.3 checks (read a model card, reasons for 10 students); optional pytest-xdist; the red-band fairness audit should be re-run on the college's own data; faculty enter student IDs by hand until the data has a teacher-to-student link. Demographics must not be added as features.
 

@@ -162,3 +162,31 @@ export interface Overview {
   by_mentor: MentorLoad[];
   unassigned_students: number;
 }
+
+// Audit log (app/api/admin.py): who did what to which record. Never the stored detail.
+
+export interface AuditEntry {
+  seq: number;
+  at: string;
+  actor_kind: string;
+  actor_id: string | null;
+  action: string;
+  subject_kind: string;
+  subject_ref: string | null;
+  hash_prefix: string;
+}
+
+export interface AuditPage {
+  items: AuditEntry[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AuditCheck {
+  ok: boolean;
+  checked: number;
+  first_bad_seq: number | null;
+  problem: string | null;
+  anchor: string | null;
+}

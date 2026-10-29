@@ -5,6 +5,8 @@
 import type { Page, Route } from "@playwright/test";
 
 import type {
+  AuditCheck,
+  AuditEntry,
   CaseDetail,
   CaseState,
   Concern,
@@ -18,6 +20,7 @@ import type {
 export interface Recorded {
   method: string;
   path: string;
+  query: string; // the part after the ?, if any
   body: unknown;
 }
 
@@ -123,6 +126,16 @@ export class FakeApi {
   readonly assignments = new Map<number, string>();
   /** Students with no mentor, as the overview reports them. */
   unassigned = 0;
+  /** Audit entries, oldest first; the fake serves them newest first like the API. */
+  auditLog: AuditEntry[] = [];
+  /** What the chain check answers. */
+  auditCheck: AuditCheck = {
+    ok: true,
+    checked: 0,
+    first_bad_seq: null,
+    problem: null,
+    anchor: null,
+  };
 
   constructor(
     readonly cases: CaseDetail[],
@@ -162,7 +175,12 @@ export class FakeApi {
     const path = url.pathname.replace(/^\/backend/, "");
     const raw = request.postData();
     const body: unknown = raw ? JSON.parse(raw) : null;
-    this.requests.push({ method: request.method(), path, body });
+    this.requests.push({
+      method: request.method(),
+      path,
+      query: url.search.replace(/^\?/, ""),
+      body,
+    });
 
     if (this.failure) {
       const { status, detail } = this.failure;
@@ -192,6 +210,23 @@ export class FakeApi {
       if (this.role !== "staff" && this.role !== "admin")
         return this.reply(route, 403, { detail: "not allowed" });
       return this.reply(route, 200, this.overview());
+    }
+    if (request.method() === "GET" && path === "/api/admin/audit/verify") {
+      return this.reply(route, 200, this.auditCheck);
+    }
+    if (request.method() === "GET" && path === "/api/admin/audit") {
+      const wanted = url.searchParams.get("action");
+      const limit = Number(url.searchParams.get("limit") ?? 50);
+      const offset = Number(url.searchParams.get("offset") ?? 0);
+      const rows = this.auditLog
+        .filter((e) => !wanted || e.action === wanted)
+        .reverse();
+      return this.reply(route, 200, {
+        items: rows.slice(offset, offset + limit),
+        total: rows.length,
+        limit,
+        offset,
+      });
     }
     const assign = /^\/api\/admin\/mentor-assignments\/(\d+)$/.exec(path);
     if (assign && request.method() === "PUT") {
