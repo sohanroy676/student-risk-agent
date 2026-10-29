@@ -76,7 +76,7 @@ jobs:
             paths: tests/ingest tests/jobs
             marker: postgres and not slow
           - name: cases, api
-            paths: tests/cases tests/api
+            paths: tests/cases tests/api tests/agent
             marker: postgres and not slow
 
     services:

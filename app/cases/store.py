@@ -15,6 +15,8 @@ from datetime import date, timedelta
 from sqlalchemy import Connection, text
 from sqlalchemy.exc import IntegrityError
 
+from app.agent.schema import InvalidPlan, Plan
+from app.agent.tools import CaseTools
 from app.cases.bands import Band
 from app.cases.config import CaseConfig
 from app.cases.drafts import check_message, template_message
@@ -295,6 +297,43 @@ def draft_new_cases(conn: Connection, today: date, cfg: CaseConfig | None = None
         _add_draft(conn, case_id, "template", TEMPLATE_AUTHOR, template_message(cycle), today)
         advance(conn, case_id, Action.SAVE_PLAN, Actor.AGENT, TEMPLATE_AUTHOR, today, cfg)
     return [case_id for case_id, _ in new_cases]
+
+
+def save_plan(conn: Connection, case_id: int, plan: Plan, author: str, today: date) -> int:
+    """Save the agent's plan as the next draft version and move the case to `drafted`.
+
+    The case must be `new`. The message must pass `check_message`, and every `fact_id` a claim
+    cites must be one the case has (its reasons and recent concerns); otherwise `InvalidPlan`
+    or `InvalidMessage`, and nothing is written. The `save_plan` event and audit entry come from
+    `advance` and carry no wording. Returns the draft version.
+    """
+    row = conn.execute(
+        text("SELECT state FROM app.cases WHERE id = :id FOR UPDATE"), {"id": case_id}
+    ).one_or_none()
+    if row is None:
+        raise LookupError(f"no case {case_id}")
+    if State(row.state) is not State.NEW:
+        raise WrongState(f"cannot save a plan for a {row.state} case")
+    message = check_message(plan.message)
+    known = CaseTools(conn, case_id, today).known_fact_ids()
+    cited = {fid for claim in plan.rationale for fid in claim.fact_ids}
+    if not cited <= known:
+        raise InvalidPlan("a claim cites a fact the case does not have")
+    version = _add_draft(conn, case_id, "agent", author, message, today)
+    conn.execute(
+        text(
+            "INSERT INTO app.case_plans (case_id, draft_version, rationale, steps) "
+            "VALUES (:case, :version, CAST(:rationale AS jsonb), CAST(:steps AS jsonb))"
+        ),
+        {
+            "case": case_id,
+            "version": version,
+            "rationale": json.dumps([c.model_dump() for c in plan.rationale]),
+            "steps": json.dumps(plan.steps),
+        },
+    )
+    advance(conn, case_id, Action.SAVE_PLAN, Actor.AGENT, author, today)
+    return version
 
 
 def edit_draft(conn: Connection, case_id: int, message: str, mentor_id: str, today: date) -> int:
