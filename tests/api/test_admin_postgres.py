@@ -237,7 +237,7 @@ def test_only_an_admin_can_read_the_run_and_the_audit_check(api: Api, role: str,
 
 
 def log_three(api: Api) -> None:
-    log_run(api, "nightly.run", {"cases_opened": 3, "student_name": "Asha Rao"})
+    log_run(api, "nightly.run", {"cases_opened": 3, "cause": "Asha Rao"})
     log_run(api, "nightly.run", {"cases_opened": 1})
     log_run(api, "nightly.halted", {"cause": "too many rejected rows"})
 
