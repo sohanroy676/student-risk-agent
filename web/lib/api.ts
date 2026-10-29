@@ -1,6 +1,8 @@
 import { clearToken, getToken } from "./session";
 import type {
   AssignmentResult,
+  AuditCheck,
+  AuditPage,
   CaseAction,
   CaseDetail,
   CasePage,
@@ -171,4 +173,21 @@ export function loadLatestRun(): Promise<NightlyRun> {
 
 export function loadOverview(): Promise<Overview> {
   return request<Overview>("/api/overview");
+}
+
+export function loadAudit(params: {
+  action?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<AuditPage> {
+  const query = new URLSearchParams();
+  if (params.action) query.set("action", params.action);
+  query.set("limit", String(params.limit ?? 50));
+  query.set("offset", String(params.offset ?? 0));
+  return request<AuditPage>(`/api/admin/audit?${query}`);
+}
+
+export function verifyAudit(anchor?: string): Promise<AuditCheck> {
+  const query = anchor ? `?${new URLSearchParams({ anchor })}` : "";
+  return request<AuditCheck>(`/api/admin/audit/verify${query}`);
 }

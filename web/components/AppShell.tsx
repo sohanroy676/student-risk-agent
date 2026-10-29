@@ -36,6 +36,7 @@ const NAV: NavItem[] = [
   { href: "/models", label: "Models", roles: ["admin"] },
   { href: "/admin/assignments", label: "Assignments", roles: ["admin"] },
   { href: "/admin/nightly", label: "Nightly run", roles: ["admin"] },
+  { href: "/admin/audit", label: "Audit", roles: ["admin"] },
 ];
 
 const ROLE_LABEL: Record<Role, string> = {
