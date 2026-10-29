@@ -89,6 +89,8 @@
 - `feature/audit-screen` merged to `main` (772f5c3)
 - `feature/role-flows`: `web/e2e/roles.spec.ts` (one journey per role), 4 Playwright tests. Web lint, typecheck, prettier (touched file) and 116 Playwright tests pass (dev and production build); no Python changed
 
+- `feature/agent-tools`: agent plan schema, read-only case tools, `save_plan`, migration 0012 (`app.case_plans`), `tests/agent`. Local: ruff, mypy, 969 passed (non-postgres); its Postgres tests are first run by CI
+
 ## Next
 
 - Finish v0.5 (admin screens, department overview, audit screen, resources and settings if wanted, per-role Playwright flows, manual checks), then tag `v0.5.0`; details in activeContext
